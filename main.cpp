@@ -1032,20 +1032,39 @@ void testResize3() {
 
 static int rand_size() { return (pcg32() & 63) * 4 + 3; }
 
+static void dump_atlas_to_svg(const char* filename, int width, int height, size_t count, Bin** bins)
+{
+    pcg32_init(3);
+    FILE* f = fopen(filename, "wb");
+    if (!f)
+        return;
+    fprintf(f, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 %i %i\">\n", width+20, height+20);
+    for (size_t i = 0; i < count; ++i) {
+        const Bin& b = *bins[i];
+        fprintf(f, "<rect x=\"%i\" y=\"%i\" width=\"%i\" height=\"%i\" fill=\"rgb(%i,%i,%i)\" />\n",
+            b.x+10, b.y+10, b.w, b.h, pcg32()&255, pcg32()&255, pcg32()&255);
+
+    }
+    fprintf(f, "<rect x=\"10\" y=\"10\" width=\"%i\" height=\"%i\" fill=\"none\" stroke=\"black\" stroke-width=\"5\" />\n", width, height);
+    fprintf(f, "<text x=\"10\" y=\"1000\" font-family=\"Arial\" font-size=\"950\" fill=\"black\" stroke=\"white\" stroke-width=\"20\">%i x %i</text>\n", width, height);
+    fprintf(f, "</svg>");
+    fclose(f);
+}
+
 void testBench()
 {
     std::cout << "Bench" << std::endl;
     ShelfPack::ShelfPackOptions options;
     options.autoResize = true;
 
-    const int count = 100000;
+    const int count = 20000;
     std::vector<Bin*> bins;
     bins.reserve(count);
 
-    pcg32_init(1);
 
     // pack initial thumbs
-    // Mac M1 Max O2: 30.85ms
+    // Mac M1 Max O2: 3.1ms
+    pcg32_init(1);
     std::clock_t t0 = std::clock();
     ShelfPack sprite(10, 10, options);
     for (int i = 0; i < count; ++i) {
@@ -1059,9 +1078,10 @@ void testBench()
     std::clock_t t1 = std::clock();
     double dur = (t1 - t0) / (double) CLOCKS_PER_SEC;
     printf("- packed %i, got %ix%i atlas, took %.2fms\n", count, sprite.width(), sprite.height(), dur*1000.0);
+    dump_atlas_to_svg("res_mapbox1.svg", sprite.width(), sprite.height(), bins.size(), bins.data());
 
-    assert(sprite.width() == 65280);
-    assert(sprite.height() == 55962);
+    assert(sprite.width() == 32639);
+    assert(sprite.height() == 27989);
 
     // remove half of thumbs
     for (int i = 0; i < bins.size(); i += 2)
@@ -1070,7 +1090,8 @@ void testBench()
     }
 
     // pack half of thumbs again
-    // Mac M1 Max O2: 2798.90ms
+    // Mac M1 Max O2: 174.1ms
+    pcg32_init(2);
     t0 = std::clock();
     for (int i = 0; i < bins.size(); i += 2)
     {
@@ -1083,8 +1104,9 @@ void testBench()
     t1 = std::clock();
     dur = (t1 - t0) / (double) CLOCKS_PER_SEC;
     printf("- packed %i, got %ix%i atlas, took %.2fms\n", count/2, sprite.width(), sprite.height(), dur*1000.0);
-    assert(sprite.width() == 65280);
-    assert(sprite.height() == 55962);
+    dump_atlas_to_svg("res_mapbox2.svg", sprite.width(), sprite.height(), bins.size(), bins.data());
+    assert(sprite.width() == 32639);
+    assert(sprite.height() == 27989);
 }
 
 
