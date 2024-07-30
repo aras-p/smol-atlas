@@ -3,3 +3,5 @@
 *.svg
 *.obj
 *.exe
+.vs
+/out
