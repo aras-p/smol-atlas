@@ -105,7 +105,7 @@ static void dump_mapbox_atlas_to_svg(const char* filename, int width, int height
     FILE* f = fopen(filename, "wb");
     if (!f)
         return;
-    dump_svg_header(f, width, height);
+    dump_svg_header(f, 8192, 8192);
     for (const Bin* bin : bins) {
         dump_svg_rect(f, bin->x, bin->y, bin->w, bin->h);
     }
@@ -124,9 +124,6 @@ static void test_mapbox()
     options.autoResize = true;
     ShelfPack atlas(1024, 1024, options);
 
-    std::vector<Bin*> bins;
-    bins.reserve(s_test_entries.size());
-
     std::unordered_set<Bin*> bins_cur, bins_prev;
     int max_w = 0, max_h = 0, max_frame = -1;
 
@@ -143,7 +140,6 @@ static void test_mapbox()
                     printf("ERROR: out of space\n");
                     exit(1);
                 }
-                bins.push_back(res);
                 bins_cur.insert(res);
                 bins_prev.erase(res);
             }
@@ -170,11 +166,27 @@ static void test_mapbox()
             }
         }
     }
-
+    
     clock_t t1 = clock();
     double dur = (t1 - t0) / double(CLOCKS_PER_SEC);
     printf("- packed total %zi, got %ix%i atlas (max frame %i), took %.2fms\n", s_test_entries.size(), max_w, max_h, max_frame, dur * 1000.0);
     dump_mapbox_atlas_to_svg("res_mapbox_end.svg", max_w, max_h, bins_prev);
+
+    // now put all test entries and dump that
+    for (size_t test_idx = 0; test_idx < s_test_entries.size(); ++test_idx) {
+        const TestEntry& entry = s_unique_entries[s_test_entries[test_idx]];
+        Bin* res = atlas.packOne(entry.id, entry.width, entry.height);
+        if (!res) {
+            printf("ERROR: out of space\n");
+            exit(1);
+        }
+        bins_cur.insert(res);
+        bins_prev.erase(res);
+    }
+    bins_prev.swap(bins_cur);
+    atlas.shrink();
+    printf("- packed whole %zi, got %ix%i atlas\n", s_test_entries.size(), atlas.width(), atlas.height());
+    dump_mapbox_atlas_to_svg("res_mapbox_whole.svg", atlas.width(), atlas.height(), bins_prev);
 }
 
 // -------------------------------------------------------------------
