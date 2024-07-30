@@ -1051,9 +1051,9 @@ static void dump_atlas_to_svg(const char* filename, int width, int height, size_
     fclose(f);
 }
 
-void testBench()
+static void benchmark_mapbox()
 {
-    std::cout << "Bench" << std::endl;
+    std::cout << "Bench mapbox" << std::endl;
     ShelfPack::ShelfPackOptions options;
     options.autoResize = true;
 
@@ -1064,6 +1064,7 @@ void testBench()
 
     // pack initial thumbs
     // Mac M1 Max O2: 3.1ms
+    // Win Ryzen 5950X /O2: 4.0ms
     pcg32_init(1);
     std::clock_t t0 = std::clock();
     ShelfPack sprite(10, 10, options);
@@ -1077,7 +1078,7 @@ void testBench()
     sprite.shrink();
     std::clock_t t1 = std::clock();
     double dur = (t1 - t0) / (double) CLOCKS_PER_SEC;
-    printf("- packed %i, got %ix%i atlas, took %.2fms\n", count, sprite.width(), sprite.height(), dur*1000.0);
+    printf("- packed      %i, got %ix%i atlas, took %.2fms\n", count, sprite.width(), sprite.height(), dur*1000.0);
     dump_atlas_to_svg("res_mapbox1.svg", sprite.width(), sprite.height(), bins.size(), bins.data());
 
     assert(sprite.width() == 32639);
@@ -1091,6 +1092,7 @@ void testBench()
 
     // pack half of thumbs again
     // Mac M1 Max O2: 174.1ms
+    // Win Ryzen 5950X /O2: 136.0ms
     pcg32_init(2);
     t0 = std::clock();
     for (int i = 0; i < bins.size(); i += 2)
@@ -1103,8 +1105,29 @@ void testBench()
     }
     t1 = std::clock();
     dur = (t1 - t0) / (double) CLOCKS_PER_SEC;
-    printf("- packed %i, got %ix%i atlas, took %.2fms\n", count/2, sprite.width(), sprite.height(), dur*1000.0);
+    printf("- packed half %i, got %ix%i atlas, took %.2fms\n", count/2, sprite.width(), sprite.height(), dur*1000.0);
     dump_atlas_to_svg("res_mapbox2.svg", sprite.width(), sprite.height(), bins.size(), bins.data());
+    assert(sprite.width() == 32639);
+    assert(sprite.height() == 27989);
+
+    // pack a bunch, removing one and adding one
+    // Win Ryzen 5950X /O2: 3230.0ms
+    pcg32_init(2);
+    t0 = std::clock();
+    for (int i = 0; i < count * 10; ++i)
+    {
+        int idx = pcg32() % count;
+        sprite.unref(*bins[idx]);
+        int w = rand_size();
+        int h = rand_size();
+        Bin *res = sprite.packOne(-1, w, h);
+        if (!res) throw std::runtime_error("out of space");
+        bins[idx] = res;
+    }
+    t1 = std::clock();
+    dur = (t1 - t0) / (double) CLOCKS_PER_SEC;
+    printf("- packed rand %i, got %ix%i atlas, took %.2fms\n", count * 10, sprite.width(), sprite.height(), dur*1000.0);
+    dump_atlas_to_svg("res_mapbox3.svg", sprite.width(), sprite.height(), bins.size(), bins.data());
     assert(sprite.width() == 32639);
     assert(sprite.height() == 27989);
 }
@@ -1155,7 +1178,7 @@ int main() {
     testResize2();
     testResize3();
 
-    testBench();
+    benchmark_mapbox();
 
     return 0;
 }

@@ -1,3 +1,5 @@
 .DS_Store
 /a.out
 *.svg
+*.obj
+*.exe
