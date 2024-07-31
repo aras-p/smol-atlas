@@ -22,8 +22,3 @@ int sma_entry_get_x(const smol_atlas_entry_t* entry);
 int sma_entry_get_y(const smol_atlas_entry_t* entry);
 int sma_entry_get_width(const smol_atlas_entry_t* entry);
 int sma_entry_get_height(const smol_atlas_entry_t* entry);
-
-void sma_debug_dump(const smol_atlas_t* atlas,
-                    void(*emit_shelf)(int y, int height, int width),
-                    void(*emit_free_span)(int y, int height, int x, int width),
-                    void(*emit_entry)(const smol_atlas_entry_t* entry));

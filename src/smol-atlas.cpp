@@ -393,23 +393,3 @@ int sma_entry_get_height(const smol_atlas_entry_t* entry)
 {
     return entry->height;
 }
-
-void sma_debug_dump(const smol_atlas_t* atlas,
-                    void(*emit_shelf)(int y, int height, int width),
-                    void(*emit_free_span)(int y, int height, int x, int width),
-                    void(*emit_entry)(const smol_atlas_entry_t* entry))
-{
-    for (const auto& shelf : atlas->m_shelves) {
-        emit_shelf(shelf->m_y, shelf->m_height, shelf->m_width);
-        
-        smol_free_span_t* it = shelf->m_free_spans;
-        while (it != nullptr) {
-            emit_free_span(shelf->m_y, shelf->m_height, it->x, it->width);
-            it = it->next;
-        }
-        
-        for (const smol_atlas_entry_t* e : shelf->m_entries) {
-            emit_entry(e);
-        }
-    }
-}
