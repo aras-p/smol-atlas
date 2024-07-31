@@ -1,3 +1,4 @@
+#include "../src/smol-atlas.h"
 #include "../external/mapbox-shelf-pack-cpp/include/mapbox/shelf-pack.hpp"
 
 #include <stdint.h>
@@ -92,11 +93,13 @@ static void dump_svg_footer(FILE* f, int width, int height)
     fprintf(f, "<text x=\"10\" y=\"500\" font-family=\"Arial\" font-size=\"450\" fill=\"black\" stroke=\"white\" stroke-width=\"5\">%i x %i</text>\n", width, height);
     fprintf(f, "</svg>");
 }
-static void dump_svg_rect(FILE* f, int x, int y, int width, int height)
+static void dump_svg_rect(FILE* f, int x, int y, int width, int height, int r, int g, int b)
 {
     fprintf(f, "<rect x=\"%i\" y=\"%i\" width=\"%i\" height=\"%i\" fill=\"rgb(%i,%i,%i)\" />\n",
-        x + 10, y + 10, width, height, pcg32() & 255, pcg32() & 255, pcg32() & 255);
+        x + 10, y + 10, width, height, r, g, b);
 }
+
+// -------------------------------------------------------------------
 
 static void dump_mapbox_atlas_to_svg(const char* filename, int width, int height, const std::unordered_set<mapbox::Bin*>& bins)
 {
@@ -105,9 +108,9 @@ static void dump_mapbox_atlas_to_svg(const char* filename, int width, int height
     FILE* f = fopen(filename, "wb");
     if (!f)
         return;
-    dump_svg_header(f, 8192, 8192);
+    dump_svg_header(f, width < 1000 ? width : 8192, height < 1000 ? height : 8192);
     for (const Bin* bin : bins) {
-        dump_svg_rect(f, bin->x, bin->y, bin->w, bin->h);
+        dump_svg_rect(f, bin->x, bin->y, bin->w, bin->h, (bin->id * 12841) & 255, (bin->id * 24571) & 255, (bin->id * 36947) & 255);
     }
     dump_svg_footer(f, width, height);
     fclose(f);
@@ -124,7 +127,7 @@ static void test_mapbox()
     options.autoResize = true;
     ShelfPack atlas(1024, 1024, options);
 
-    std::unordered_set<Bin*> bins_cur, bins_prev;
+    std::unordered_set<Bin*> bins_cur, bins_prev, bins_live;
     int max_w = 0, max_h = 0, max_frame = -1;
 
     for (int run = 0; run < TEST_RUN_COUNT; ++run) {
@@ -140,13 +143,16 @@ static void test_mapbox()
                     printf("ERROR: out of space\n");
                     exit(1);
                 }
+                bins_live.insert(res);
                 bins_cur.insert(res);
                 bins_prev.erase(res);
             }
 
             // free bins that were from previous frame, and unused in this frame
             for (Bin* bin : bins_prev) {
-                atlas.unref(*bin);
+                int rc = atlas.unref(*bin);
+                if (rc == 0)
+                    bins_live.erase(bin);
             }
             bins_prev.swap(bins_cur);
             atlas.shrink();
@@ -160,9 +166,12 @@ static void test_mapbox()
                 max_h = height;
                 max_frame = frame_idx;
             }
-
+            
+            if (frame_idx == 50 && run == 0) {
+                dump_mapbox_atlas_to_svg("res_mapbox_1.svg", max_w, max_h, bins_live);
+            }
             if (frame_idx == 232 && run == TEST_RUN_COUNT - 1) {
-                dump_mapbox_atlas_to_svg("res_mapbox_232.svg", max_w, max_h, bins_prev);
+                dump_mapbox_atlas_to_svg("res_mapbox_232.svg", max_w, max_h, bins_live);
             }
         }
     }
@@ -170,7 +179,7 @@ static void test_mapbox()
     clock_t t1 = clock();
     double dur = (t1 - t0) / double(CLOCKS_PER_SEC);
     printf("- packed total %zi, got %ix%i atlas (max frame %i), took %.2fms\n", s_test_entries.size(), max_w, max_h, max_frame, dur * 1000.0);
-    dump_mapbox_atlas_to_svg("res_mapbox_end.svg", max_w, max_h, bins_prev);
+    dump_mapbox_atlas_to_svg("res_mapbox_end.svg", max_w, max_h, bins_live);
 
     // now put all test entries and dump that
     for (size_t test_idx = 0; test_idx < s_test_entries.size(); ++test_idx) {
@@ -182,11 +191,148 @@ static void test_mapbox()
         }
         bins_cur.insert(res);
         bins_prev.erase(res);
+        bins_live.insert(res);
     }
     bins_prev.swap(bins_cur);
     atlas.shrink();
     printf("- packed whole %zi, got %ix%i atlas\n", s_test_entries.size(), atlas.width(), atlas.height());
-    dump_mapbox_atlas_to_svg("res_mapbox_whole.svg", atlas.width(), atlas.height(), bins_prev);
+    dump_mapbox_atlas_to_svg("res_mapbox_whole.svg", atlas.width(), atlas.height(), bins_live);
+}
+
+// -------------------------------------------------------------------
+
+static FILE* s_svg_file;
+
+static void svg_emit_shelf(int y, int height, int width)
+{
+    //fprintf(s_svg_file, "<line x1=\"%i\" y1=\"%i\" x2=\"%i\" y2=\"%i\" stroke=\"rgb(0,0,0)\" stroke-width=\"5\" />\n",
+    //        10, y + height + 10, width + 10, y + height + 10);
+}
+static void svg_emit_free_span(int y, int height, int x, int width)
+{
+    //fprintf(s_svg_file, "<rect x=\"%i\" y=\"%i\" width=\"%i\" height=\"%i\" fill=\"none\" stroke=\"gray\" stroke-width=\"2\" />\n",
+    //        x + 10, y + height/3 + 10, width, height / 3);
+}
+static void svg_emit_entry(const smol_atlas_entry_t* e)
+{
+    dump_svg_rect(
+        s_svg_file,
+        sma_entry_get_x(e), sma_entry_get_y(e), sma_entry_get_width(e), sma_entry_get_height(e),
+        pcg32() & 255, pcg32() & 255, pcg32() & 255);
+}
+
+static void dump_smol_atlas_to_svg(const char* filename, const smol_atlas_t* atlas)
+{
+    pcg_state = 3;
+    s_svg_file = fopen(filename, "wb");
+    if (!s_svg_file)
+        return;
+    
+    const int width = sma_get_width(atlas);
+    const int height = sma_get_height(atlas);
+    dump_svg_header(s_svg_file, width < 1000 ? width : 8192, height < 1000 ? height : 8192);
+    sma_debug_dump(atlas, svg_emit_shelf, svg_emit_free_span, svg_emit_entry);
+    dump_svg_footer(s_svg_file, width, height);
+    fclose(s_svg_file);
+    s_svg_file = nullptr;
+}
+
+static void test_smol()
+{
+    printf("Test smol-atlas...\n");
+
+    clock_t t0 = clock();
+
+    smol_atlas_t* atlas = sma_create(1024, 1024);
+
+    std::unordered_map<int, smol_atlas_entry_t*> entries_cur, entries_prev, entries_live;
+    std::unordered_map<int, int> entries_refcount;
+    int max_w = 0, max_h = 0, max_frame = -1;
+
+    for (int run = 0; run < TEST_RUN_COUNT; ++run) {
+        for (int frame_idx = 0; frame_idx < s_test_frames.size(); ++frame_idx) {
+            size_t frame_start_idx = s_test_frames[frame_idx].first;
+            size_t frame_size = s_test_frames[frame_idx].second;
+
+            entries_cur.clear();
+            for (size_t test_idx = frame_start_idx; test_idx < frame_start_idx + frame_size; ++test_idx) {
+                const TestEntry& entry = s_unique_entries[s_test_entries[test_idx]];
+                smol_atlas_entry_t* res;
+                auto it = entries_live.find(entry.id);
+                if (it != entries_live.end()) {
+                    res = it->second;
+                }
+                else {
+                    res = sma_pack(atlas, entry.width, entry.height);
+                    entries_live.insert({entry.id, res});
+                }
+                entries_refcount[entry.id]++;
+                if (!res) {
+                    printf("ERROR: out of space\n");
+                    exit(1);
+                }
+                entries_cur.insert({entry.id, res});
+                entries_prev.erase(entry.id);
+            }
+
+            // free entries that were from previous frame, and unused in this frame
+            for (auto& kvp : entries_prev) {
+                int rc = --entries_refcount[kvp.first];
+                if (rc == 0) {
+                    sma_entry_release(atlas, kvp.second);
+                    entries_live.erase(kvp.first);
+                }
+            }
+            entries_prev.swap(entries_cur);
+            sma_shrink_to_fit(atlas);
+            int width = sma_get_width(atlas);
+            int height = sma_get_height(atlas);
+            if (width > max_w) {
+                max_w = width;
+                max_frame = frame_idx;
+            }
+            if (height > max_h) {
+                max_h = height;
+                max_frame = frame_idx;
+            }
+
+            if (frame_idx == 50 && run == 0) {
+                dump_smol_atlas_to_svg("res_smol_1.svg", atlas);
+            }
+            if (frame_idx == 232 && run == TEST_RUN_COUNT - 1) {
+                dump_smol_atlas_to_svg("res_smol_232.svg", atlas);
+            }
+        }
+    }
+
+    clock_t t1 = clock();
+    double dur = (t1 - t0) / double(CLOCKS_PER_SEC);
+    printf("- packed total %zi, got %ix%i atlas (max frame %i), took %.2fms\n", s_test_entries.size(), max_w, max_h, max_frame, dur * 1000.0);
+    dump_smol_atlas_to_svg("res_smol_end.svg", atlas);
+
+    // now put all test entries and dump that
+    for (size_t test_idx = 0; test_idx < s_test_entries.size(); ++test_idx) {
+        const TestEntry& entry = s_unique_entries[s_test_entries[test_idx]];
+
+        smol_atlas_entry_t* res;
+        auto it = entries_live.find(entry.id);
+        if (it != entries_live.end()) {
+            res = it->second;
+        }
+        else {
+            res = sma_pack(atlas, entry.width, entry.height);
+            entries_live.insert({entry.id, res});
+        }
+        if (!res) {
+            printf("ERROR: out of space\n");
+            exit(1);
+        }
+    }
+    sma_shrink_to_fit(atlas);
+    printf("- packed whole %zi, got %ix%i atlas\n", s_test_entries.size(), sma_get_width(atlas), sma_get_height(atlas));
+    dump_smol_atlas_to_svg("res_smol_whole.svg", atlas);
+
+    sma_destroy(atlas);
 }
 
 // -------------------------------------------------------------------
@@ -278,12 +424,17 @@ static void benchmark_mapbox()
 
 // -------------------------------------------------------------------
 
+int run_smol_atlas_tests();
+
 int main()
 {
+    run_smol_atlas_tests();    
+
     //benchmark_mapbox();
     load_test_data("test/thumbs-gold.txt");
 
     test_mapbox();
+    test_smol();
 
     return 0;
 }
