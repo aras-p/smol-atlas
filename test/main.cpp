@@ -313,6 +313,8 @@ struct test_on_mapbox
     mapbox::ShelfPack* m_atlas;
 };
 
+#if HAVE_ETAGERE
+
 #include "../external/etagere/etagere.h"
 
 struct test_on_etagere
@@ -358,6 +360,8 @@ struct test_on_etagere
     EtagereAtlasAllocator* m_atlas;
 };
 
+#endif // #if HAVE_ETAGERE
+
 #include "../src/smol-atlas.h"
 
 struct test_on_smol
@@ -396,25 +400,33 @@ int main()
     run_smol_atlas_tests();
     
     test_atlas_synthetic<test_on_mapbox>("mapbox", "out_syn_mapbox.svg");
+    #if HAVE_ETAGERE
     test_atlas_synthetic<test_on_etagere>("etagere", "out_syn_etagere.svg");
+    #endif
     test_atlas_synthetic<test_on_smol>("smol", "out_syn_smol.svg");
 
     load_test_data("test/thumbs-gold.txt");
     const int free_frames_gold = 30;
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_gold_mapbox.svg", free_frames_gold);
+    #if HAVE_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_gold_etagere.svg", free_frames_gold);
+    #endif
     test_atlas_on_data<test_on_smol>("smol", "out_data_gold_smol.svg", free_frames_gold);
 
     load_test_data("test/thumbs-wingit.txt");
     const int free_frames_wingit = 40;
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_wingit_mapbox.svg", free_frames_wingit);
+    #if HAVE_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_wingit_etagere.svg", free_frames_wingit);
+    #endif
     test_atlas_on_data<test_on_smol>("smol", "out_data_wingit_smol.svg", free_frames_wingit);
 
     load_test_data("test/thumbs-sprite-fright.txt");
     const int free_frames_sprite = 5;
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_spritefright_mapbox.svg", free_frames_sprite);
+    #if HAVE_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_spritefright_etagere.svg", free_frames_sprite);
+    #endif
     test_atlas_on_data<test_on_smol>("smol", "out_data_spritefright_smol.svg", free_frames_sprite);
 
     return 0;

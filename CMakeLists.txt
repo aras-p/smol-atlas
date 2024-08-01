@@ -12,4 +12,14 @@ target_sources(smol-atlas PRIVATE
     external/mapbox-shelf-pack-cpp/include/mapbox/shelf-pack.hpp
 )
 target_compile_features(smol-atlas PRIVATE cxx_std_17)
-target_link_libraries(smol-atlas "${CMAKE_SOURCE_DIR}/external/etagere/${CMAKE_SHARED_LIBRARY_PREFIX}etagere${CMAKE_SHARED_LIBRARY_SUFFIX}")
+message("CPU ${CMAKE_SYSTEM_PROCESSOR}")
+
+if (WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
+	target_link_libraries(smol-atlas "${CMAKE_SOURCE_DIR}/external/etagere/etagere.dll.lib")
+	add_custom_command(TARGET smol-atlas POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/external/etagere/etagere.dll" $<TARGET_FILE_DIR:smol-atlas>)
+	target_compile_definitions(smol-atlas PRIVATE HAVE_ETAGERE=1)
+elseif (APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+	target_link_libraries(smol-atlas "${CMAKE_SOURCE_DIR}/external/etagere/etagere.dylib")
+	target_compile_definitions(smol-atlas PRIVATE HAVE_ETAGERE=1)
+endif()
