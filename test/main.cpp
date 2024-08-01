@@ -300,17 +300,62 @@ struct test_on_mapbox
     }
     
     Entry pack(int width, int height) { return m_atlas->packOne(-1, width, height); }
-    void release(Entry e) { m_atlas->unref(*e); }
+    void release(Entry& e) { m_atlas->unref(*e); }
     void shrink() { m_atlas->shrink(); }
     int width() const { return m_atlas->width(); }
     int height() const { return m_atlas->height(); }
     
-    int entry_x(const Entry e) const { return e->x; }
-    int entry_y(const Entry e) const { return e->y; }
-    int entry_width(const Entry e) const { return e->w; }
-    int entry_height(const Entry e) const { return e->h; }
+    int entry_x(const Entry& e) const { return e->x; }
+    int entry_y(const Entry& e) const { return e->y; }
+    int entry_width(const Entry& e) const { return e->w; }
+    int entry_height(const Entry& e) const { return e->h; }
 
     mapbox::ShelfPack* m_atlas;
+};
+
+#include "../external/etagere/etagere.h"
+
+struct test_on_etagere
+{
+    struct Entry {
+        EtagereAllocation e;
+        int w;
+        int h;
+    };
+    static constexpr int ATLAS_WIDTH = 4096;
+    static constexpr int ATLAS_HEIGHT = 4096;
+
+    test_on_etagere()
+    {
+        m_atlas = etagere_atlas_allocator_new(ATLAS_WIDTH, ATLAS_HEIGHT);
+    }
+    ~test_on_etagere()
+    {
+        etagere_atlas_allocator_delete(m_atlas);
+    }
+    
+    Entry pack(int width, int height)
+    {
+        Entry res;
+        EtagereStatus status = etagere_atlas_allocator_allocate(m_atlas, width, height, &res.e);
+        res.w = width;
+        res.h = height;
+        if (status)
+            return res;
+        else
+            throw("failed to alloc");
+    }
+    void release(Entry& e) { etagere_atlas_allocator_deallocate(m_atlas, e.e.id); }
+    void shrink() { }
+    int width() const { return ATLAS_WIDTH; }
+    int height() const { return ATLAS_HEIGHT; }
+    
+    int entry_x(const Entry& e) const { return e.e.rectangle.min_x; }
+    int entry_y(const Entry& e) const { return e.e.rectangle.min_y; }
+    int entry_width(const Entry& e) const { return e.w; }
+    int entry_height(const Entry& e) const { return e.h; }
+
+    EtagereAtlasAllocator* m_atlas;
 };
 
 #include "../src/smol-atlas.h"
@@ -329,15 +374,15 @@ struct test_on_smol
     }
     
     Entry pack(int width, int height) { return sma_pack(m_atlas, width, height); }
-    void release(Entry e) { sma_entry_release(m_atlas, e); }
+    void release(Entry& e) { sma_entry_release(m_atlas, e); }
     void shrink() { sma_shrink_to_fit(m_atlas); }
     int width() const { return sma_get_width(m_atlas); }
     int height() const { return sma_get_height(m_atlas); }
     
-    int entry_x(const Entry e) const { return sma_entry_get_x(e); }
-    int entry_y(const Entry e) const { return sma_entry_get_y(e); }
-    int entry_width(const Entry e) const { return sma_entry_get_width(e); }
-    int entry_height(const Entry e) const { return sma_entry_get_height(e); }
+    int entry_x(const Entry& e) const { return sma_entry_get_x(e); }
+    int entry_y(const Entry& e) const { return sma_entry_get_y(e); }
+    int entry_width(const Entry& e) const { return sma_entry_get_width(e); }
+    int entry_height(const Entry& e) const { return sma_entry_get_height(e); }
 
     smol_atlas_t* m_atlas;
 };
@@ -351,21 +396,25 @@ int main()
     run_smol_atlas_tests();
     
     test_atlas_synthetic<test_on_mapbox>("mapbox", "out_syn_mapbox.svg");
+    test_atlas_synthetic<test_on_etagere>("etagere", "out_syn_etagere.svg");
     test_atlas_synthetic<test_on_smol>("smol", "out_syn_smol.svg");
 
     load_test_data("test/thumbs-gold.txt");
     const int free_frames_gold = 30;
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_gold_mapbox.svg", free_frames_gold);
+    test_atlas_on_data<test_on_etagere>("etagere", "out_data_gold_etagere.svg", free_frames_gold);
     test_atlas_on_data<test_on_smol>("smol", "out_data_gold_smol.svg", free_frames_gold);
 
     load_test_data("test/thumbs-wingit.txt");
-    const int free_frames_wingit = 50;
+    const int free_frames_wingit = 40;
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_wingit_mapbox.svg", free_frames_wingit);
+    test_atlas_on_data<test_on_etagere>("etagere", "out_data_wingit_etagere.svg", free_frames_wingit);
     test_atlas_on_data<test_on_smol>("smol", "out_data_wingit_smol.svg", free_frames_wingit);
 
     load_test_data("test/thumbs-sprite-fright.txt");
     const int free_frames_sprite = 5;
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_spritefright_mapbox.svg", free_frames_sprite);
+    test_atlas_on_data<test_on_etagere>("etagere", "out_data_spritefright_etagere.svg", free_frames_sprite);
     test_atlas_on_data<test_on_smol>("smol", "out_data_spritefright_smol.svg", free_frames_sprite);
 
     return 0;
