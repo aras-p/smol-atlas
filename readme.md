@@ -110,5 +110,11 @@ Build the dynamic libraries locally by:
 - [A Thousand Ways to Pack the Bin](https://github.com/juj/RectangleBinPack/blob/master/RectangleBinPack.pdf) by Jukka Jylänki (2010)
   is a good overview. It does not talk about item removal though.
 - [Improving texture atlas allocation in WebRender](https://nical.github.io/posts/etagere.html) by Nicolas Silva (2021) is really
-  good! This, among other things, describes the Rust-based Étagère library that is used by Firefox.
+  good!
+  - Describes development journey through various atlasing approaches.
+  - Rust-based [Étagère](https://github.com/nical/etagere) library that is used by Firefox, that is mentioned above. Similar to
+    `smol-atlas`, it uses a shelf packing algorithm.
+  - Also Rust-based [Guillotière](https://github.com/nical/guillotiere) that uses a "guillotine" algorithm with tree based
+    data structure to merge removed areas. I could not get it to build for C consumption to test here though. But then, I don't
+    really know how to Rust things...
 - [Mapbox shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) is a C++ port of `shelf-pack` Javascript library from Mapbox.
