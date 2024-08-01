@@ -149,7 +149,7 @@ static void test_pack_considers_max_dimensions_for_space_reuse()
 
 static void test_pack_results_minimal_size()
 {
-    smol_atlas_t* atlas = sma_create(10, 10, true);
+    smol_atlas_t* atlas = sma_create(30, 45);
 
     smol_atlas_entry_t* res0 = sma_pack(atlas, 10, 10);
     smol_atlas_entry_t* res1 = sma_pack(atlas, 5, 15);
@@ -161,10 +161,6 @@ static void test_pack_results_minimal_size()
     CHECK_ENTRY(res2, 5, 10, 25, 15);
     CHECK_ENTRY(res3, 0, 25, 10, 20);
 
-    // Since shelf-pack doubles width/height when packing bins one by one
-    // (first width, then height) this would result in a 50x60 sprite here.
-    // But this can be shrunk to a 30x45 sprite.
-    sma_shrink_to_fit(atlas);
     CHECK_EQ(30, sma_get_width(atlas));
     CHECK_EQ(45, sma_get_height(atlas));
 
@@ -224,103 +220,6 @@ static void test_clear()
     sma_destroy(atlas);
 }
 
-static void test_shrink()
-{
-    smol_atlas_t* atlas = sma_create(20, 20);
-
-    sma_pack(atlas, 10, 5);
-
-    CHECK(sma_get_width(atlas) == 20);
-    CHECK(sma_get_height(atlas) == 20);
-
-    sma_shrink_to_fit(atlas);
-
-    CHECK(sma_get_width(atlas) == 10);
-    CHECK(sma_get_height(atlas) == 5);
-
-    sma_destroy(atlas);
-}
-
-static void test_resize_larger()
-{
-    smol_atlas_t* atlas = sma_create(10, 10);
-
-    smol_atlas_entry_t* e1 = sma_pack(atlas, 10, 10);
-    CHECK_ENTRY(e1, 0, 0, 10, 10);
-
-    sma_resize(atlas, 20, 10); // grow width
-    CHECK(sma_get_width(atlas) == 20);
-    CHECK(sma_get_height(atlas) == 10);
-
-    smol_atlas_entry_t* e2 = sma_pack(atlas, 10, 10);
-    CHECK_ENTRY(e2, 10, 0, 10, 10);
-
-    sma_resize(atlas, 20, 20); // grow height
-    CHECK(sma_get_width(atlas) == 20);
-    CHECK(sma_get_height(atlas) == 20);
-
-    smol_atlas_entry_t* e3 = sma_pack(atlas, 10, 10);
-    CHECK_ENTRY(e3, 0, 10, 10, 10);
-
-    sma_destroy(atlas);
-}
-
-static void test_autoresize_grows_width_then_height()
-{
-    smol_atlas_t* atlas = sma_create(10, 10, true);
-
-    smol_atlas_entry_t* e1 = sma_pack(atlas, 10, 10);
-    CHECK_ENTRY(e1, 0, 0, 10, 10);
-
-    CHECK(sma_get_width(atlas) == 10);
-    CHECK(sma_get_height(atlas) == 10);
-
-    smol_atlas_entry_t* e2 = sma_pack(atlas, 10, 10);
-    CHECK_ENTRY(e2, 10, 0, 10, 10);
-
-    CHECK(sma_get_width(atlas) == 20);
-    CHECK(sma_get_height(atlas) == 10);
-
-    smol_atlas_entry_t* e3 = sma_pack(atlas, 10, 10);
-    CHECK_ENTRY(e3, 0, 10, 10, 10);
-
-    CHECK(sma_get_width(atlas) == 20);
-    CHECK(sma_get_height(atlas) == 20);
-
-    smol_atlas_entry_t* e4 = sma_pack(atlas, 10, 10);
-    CHECK_ENTRY(e4, 10, 10, 10, 10);
-
-    CHECK(sma_get_width(atlas) == 20);
-    CHECK(sma_get_height(atlas) == 20);
-
-    smol_atlas_entry_t* e5 = sma_pack(atlas, 10, 10);
-    CHECK_ENTRY(e5, 20, 0, 10, 10);
-
-    CHECK(sma_get_width(atlas) == 40);
-    CHECK(sma_get_height(atlas) == 20);
-
-    sma_destroy(atlas);
-}
-
-static void test_autoresize_on_large_requests()
-{
-    smol_atlas_t* atlas = sma_create(10, 10, true);
-
-    smol_atlas_entry_t* e1 = sma_pack(atlas, 20, 10);
-    CHECK_ENTRY(e1, 0, 0, 20, 10);
-
-    CHECK(sma_get_width(atlas) == 40);
-    CHECK(sma_get_height(atlas) == 10);
-
-    smol_atlas_entry_t* e2 = sma_pack(atlas, 10, 40);
-    CHECK_ENTRY(e2, 0, 10, 10, 40);
-
-    CHECK(sma_get_width(atlas) == 40);
-    CHECK(sma_get_height(atlas) == 80);
-
-    sma_destroy(atlas);
-}
-
 int run_smol_atlas_tests()
 {
     printf("Run smol-atlas unit tests...\n");
@@ -333,13 +232,7 @@ int run_smol_atlas_tests()
     test_pack_considers_max_dimensions_for_space_reuse();
     test_pack_results_minimal_size();
     test_pack_shelf_coalescing();
-
     test_clear();
-    test_shrink();
-
-    test_resize_larger();
-    test_autoresize_grows_width_then_height();
-    test_autoresize_on_large_requests();
 
     return 0;
 }

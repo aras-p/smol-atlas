@@ -37,7 +37,7 @@ struct smol_free_span_t
 struct smol_shelf_t
 {
     explicit smol_shelf_t(int y, int width, int height, int index)
-        : m_y(y), m_width(width), m_height(height), m_index(index)
+        : m_y(y), m_height(height), m_index(index)
     {
         m_free_spans = new smol_free_span_t(0, width);
     }
@@ -182,40 +182,7 @@ struct smol_shelf_t
         }
     }
 
-    void resize(int w)
-    {
-        if (w == m_width)
-            return;
-
-        if (w > m_width) {
-            add_free_span(m_width, w - m_width);
-        }
-        else {
-            // remove or adjust any free spans beyond new width
-            smol_free_span_t* it = m_free_spans;
-            smol_free_span_t* prev = nullptr;
-            while (it != nullptr) {
-                smol_free_span_t* next = it->next;
-                if (it->x >= w) {
-                    free_spans_remove(prev, it);
-                    it = next;
-                }
-                else {
-                    if (it->x + it->width > w) {
-                        it->width = w - it->x;
-                    }
-                    prev = it;
-                    it = next;
-                }
-            }
-
-        }
-
-        m_width = w;
-    }
-
     const int m_y;
-    int m_width;
     const int m_height;
     const int m_index;
 
@@ -226,11 +193,10 @@ struct smol_shelf_t
 
 struct smol_atlas_t
 {
-    explicit smol_atlas_t(int w, int h, bool grow)
+    explicit smol_atlas_t(int w, int h)
     {
         m_width = w > 0 ? w : 64;
         m_height = h > 0 ? h : 64;
-        m_auto_grow = grow;
     }
 
     smol_atlas_entry_t* pack(int w, int h)
@@ -271,43 +237,8 @@ struct smol_atlas_t
             return m_shelves.back()->alloc_entry(w, h);
         }
 
-        // if we can't grow, fail packing now
-        if (!m_auto_grow)
-            return nullptr;
-
-        // have to grow the atlas:
-        // - double the smaller dimension (if equal, grow width)
-        // - make sure to accomodate the pack request
-        int new_w = m_width;
-        if (m_width <= m_height || w > m_width) {
-            new_w = max_i(w, m_width) * 2;
-        }
-        int new_h = m_height;
-        if (m_height < m_width || h > m_height) {
-            new_h = max_i(h, m_height) * 2;
-        }
-
-        // resize and retry the packing
-        resize(new_w, new_h);
-        return pack(w, h);
-    }
-
-    void shrink_to_fit()
-    {
-        if (m_shelves.empty())
-            return;
-
-        int new_w = 0;
-        int new_h = 0;
-
-        for (const auto& shelf : m_shelves) {
-            new_h = max_i(new_h, shelf->m_y + shelf->m_height);
-            for (const auto& entry : shelf->m_entries) {
-                new_w = max_i(new_w, entry->x + entry->width);
-            }
-        }
-
-        resize(new_w, new_h);
+        // out of space
+        return nullptr;
     }
 
     void free_entry(smol_atlas_entry_t* entry)
@@ -321,26 +252,14 @@ struct smol_atlas_t
         m_shelves.clear();
     }
 
-    void resize(int w, int h)
-    {
-        if (w == m_width && h == m_height)
-            return;
-        m_width = w;
-        m_height = h;
-        for (auto& shelf : m_shelves) {
-            shelf->resize(m_width);
-        }
-    }
-
     std::vector<std::unique_ptr<smol_shelf_t>> m_shelves;
     int m_width;
     int m_height;
-    bool m_auto_grow;
 };
 
-smol_atlas_t* sma_create(int init_width, int init_height, bool auto_grow)
+smol_atlas_t* sma_create(int init_width, int init_height)
 {
-    return new smol_atlas_t(init_width, init_height, auto_grow);
+    return new smol_atlas_t(init_width, init_height);
 }
 
 void sma_destroy(smol_atlas_t* atlas)
@@ -371,16 +290,6 @@ void sma_entry_release(smol_atlas_t* atlas, smol_atlas_entry_t* entry)
 void sma_clear(smol_atlas_t* atlas)
 {
     atlas->clear();
-}
-
-void sma_shrink_to_fit(smol_atlas_t* atlas)
-{
-    atlas->shrink_to_fit();
-}
-
-void sma_resize(smol_atlas_t* atlas, int width, int height)
-{
-    atlas->resize(width, height);
 }
 
 int sma_entry_get_x(const smol_atlas_entry_t* entry)
