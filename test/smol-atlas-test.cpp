@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Unlicense
+// smol-atlas: https://github.com/aras-p/smol-atlas
+
 #include "../src/smol-atlas.h"
 
 #include <stdio.h>
