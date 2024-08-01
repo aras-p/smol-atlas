@@ -309,6 +309,8 @@ struct test_on_mapbox
     mapbox::ShelfPack* m_atlas;
 };
 
+#include "../src/smol-atlas.h"
+
 struct test_on_smol
 {
     typedef smol_atlas_entry_t* Entry;
