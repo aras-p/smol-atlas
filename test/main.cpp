@@ -25,8 +25,6 @@ static uint32_t pcg32()
 
 // -------------------------------------------------------------------
 
-static constexpr int TEST_RUN_COUNT = 10;
-
 struct TestEntry {
     int id;
     int width;
@@ -77,7 +75,7 @@ static void load_test_data(const char* filename)
     if (frame_start_idx >= 0)
         s_test_frames.push_back(std::make_pair(frame_start_idx, (int)s_test_entries.size() - frame_start_idx));
     fclose(f);
-    printf("- test file '%s': %i frames, %i unique entries, %i total entries\n", filename, int(s_test_frames.size()), int(s_unique_entries.size()), int(s_test_entries.size()));
+    printf("Test data '%s': %i frames; %i unique %i total entries\n", filename, int(s_test_frames.size()), int(s_unique_entries.size()), int(s_test_entries.size()));
 }
 
 
@@ -102,15 +100,53 @@ static void dump_svg_rect(FILE* f, int x, int y, int width, int height, int r, i
 // -------------------------------------------------------------------
 
 template<typename T>
+static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entry*>& entries, const char* dumpname)
+{
+    FILE* f = fopen(dumpname, "wb");
+    if (!f)
+        return;
+    
+    int width = atlas.width();
+    int height = atlas.height();
+
+    dump_svg_header(f, width < 1000 ? width : 8200, height < 1000 ? height : 8200);
+    for (auto it : entries) {
+        int key = it.first;
+        typename T::Entry* e = it.second;
+        int x = atlas.entry_x(e);
+        int y = atlas.entry_y(e);
+        int w = atlas.entry_width(e);
+        int h = atlas.entry_height(e);
+        dump_svg_rect(f, x, y, w, h, (key * 12841) & 255, (key * 24571) & 255, (key * 36947) & 255);
+    }
+    dump_svg_footer(f, width, height, (int)entries.size());
+    fclose(f);
+}
+
+template<typename T>
+size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename T::Entry*>& entries)
+{
+    size_t total = 0;
+    for (auto it : entries) {
+        typename T::Entry* e = it.second;
+        int w = atlas.entry_width(e);
+        int h = atlas.entry_height(e);
+        total += w * h;
+    }
+    return total;
+}
+
+template<typename T>
 static void test_atlas_on_data(const char* name, const char* dumpname)
 {
-    printf("Test %s...\n", name);
+    printf("Run %8s on data file: ", name);
     clock_t t0 = clock();
     T atlas;
     
     std::unordered_map<int, int> id_to_timestamp;
     std::unordered_map<int, typename T::Entry*> live_entries;
     
+    constexpr int TEST_RUN_COUNT = 20;
     constexpr int FREE_AFTER_FRAMES = 30;
 
     int insertions = 0;
@@ -161,27 +197,88 @@ static void test_atlas_on_data(const char* name, const char* dumpname)
     
     int width = atlas.width();
     int height = atlas.height();
-    printf("- inserted %i removed %i (over %i runs, %i frames): got %ix%i atlas (%.1fKpix), took %.2fms\n",
-           insertions, removals, TEST_RUN_COUNT, (int)s_test_frames.size(),
-           width, height, width * height / 1000.0, dur * 1000.0);
+    size_t entry_total = count_total_entries_size(atlas, live_entries);
+    printf("%i (+%i/-%i %i runs): atlas %ix%i (%.1fMpix) used %.1fMpix (%.1f%%), %.1fms\n",
+           (int)live_entries.size(), insertions, removals, TEST_RUN_COUNT,
+           width, height, width * height / 1.0e6,
+           entry_total / 1.0e6,
+           entry_total * 100.0 / (width * height),
+           dur * 1000.0);
     
-    // write to svg
-    FILE* f = fopen(dumpname, "wb");
-    if (f)
-    {
-        dump_svg_header(f, width < 1000 ? width : 4200, height < 1000 ? height : 4200);
-        for (auto it : live_entries) {
-            int key = it.first;
-            typename T::Entry* e = it.second;
-            int x = atlas.entry_x(e);
-            int y = atlas.entry_y(e);
-            int w = atlas.entry_width(e);
-            int h = atlas.entry_height(e);
-            dump_svg_rect(f, x, y, w, h, (key * 12841) & 255, (key * 24571) & 255, (key * 36947) & 255);
-        }
-        dump_svg_footer(f, width, height, (int)live_entries.size());
-        fclose(f);
+    dump_to_svg(atlas, live_entries, dumpname);
+}
+
+static int rand_size() { return ((pcg32() & 127) + 1); } // up to 128, quantized at increments of 4
+
+template<typename T>
+static void test_atlas_synthetic(const char* name, const char* dumpname)
+{
+    printf("Run %8s on synthetic: ", name);
+    clock_t t0 = clock();
+    T atlas;
+    
+    constexpr int INIT_ENTRY_COUNT = 5000;
+    constexpr int LOOP_RUN_COUNT = 50;
+    constexpr float LOOP_FRACTION = 0.4f;
+    
+    pcg_state = 1;
+
+    int insertions = 0;
+    int removals = 0;
+    int id_counter = 1;
+    std::unordered_map<int, typename T::Entry*> entries;
+
+    // insert a bunch of initial entries
+    for (int i = 0; i < INIT_ENTRY_COUNT; ++i) {
+        int w = rand_size();
+        int h = rand_size();
+        typename T::Entry* res = atlas.pack(w, h);
+        ++insertions;
+        entries.insert({id_counter++, res});
     }
+    
+    // run removal/insertion loops
+    for (int run = 0; run < LOOP_RUN_COUNT; ++run) {
+        
+        // remove a bunch of entries
+        for (auto it = entries.begin(); it != entries.end(); ) {
+            float rnd = (pcg32() & 1023) / 1024.0f;
+            if (rnd < LOOP_FRACTION) {
+                atlas.release(it->second);
+                ++removals;
+                it = entries.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+        
+        // add a bunch of entries
+        for (int i = 0; i < INIT_ENTRY_COUNT * LOOP_FRACTION; ++i) {
+            int w = rand_size();
+            int h = rand_size();
+            typename T::Entry* res = atlas.pack(w, h);
+            ++insertions;
+            entries.insert({id_counter++, res});
+        }
+    }
+    
+    atlas.shrink();
+
+    clock_t t1 = clock();
+    double dur = (t1 - t0) / double(CLOCKS_PER_SEC);
+    
+    int width = atlas.width();
+    int height = atlas.height();
+    size_t entry_total = count_total_entries_size(atlas, entries);
+    printf("%i (+%i/-%i): atlas %ix%i (%.1fMpix) used %.1fMpix (%.1f%%), %.1fms\n",
+           (int)entries.size(), insertions, removals,
+           width, height, width * height / 1.0e6,
+           entry_total / 1.0e6,
+           entry_total * 100.0 / (width * height),
+           dur * 1000.0);
+
+    dump_to_svg(atlas, entries, dumpname);
 }
 
 struct test_on_mapbox
@@ -333,12 +430,14 @@ int run_smol_atlas_tests();
 
 int main()
 {
-    run_smol_atlas_tests();    
+    run_smol_atlas_tests();
+    
+    test_atlas_synthetic<test_on_mapbox>("mapbox", "out_syn_mapbox.svg");
+    test_atlas_synthetic<test_on_smol>("smol", "out_syn_smol.svg");
 
-    //benchmark_mapbox();
     load_test_data("test/thumbs-gold.txt");
-    test_atlas_on_data<test_on_mapbox>("mapbox", "out_mapbox.svg");
-    test_atlas_on_data<test_on_smol>("smol", "out_smol.svg");
+    test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_mapbox.svg");
+    test_atlas_on_data<test_on_smol>("smol", "out_data_smol.svg");
 
     return 0;
 }
