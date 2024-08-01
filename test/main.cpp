@@ -1,11 +1,14 @@
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <time.h>
 
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
+
+static constexpr int ATLAS_SIZE_INIT = 1024;
+static constexpr int ATLAS_GROW_BY = 512;
 
 // -------------------------------------------------------------------
 
@@ -139,11 +142,49 @@ size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename
 }
 
 template<typename T>
+void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>& entries)
+{
+    int new_width = atlas.width();
+    int new_height = atlas.height();
+
+    bool failed = false;
+    do {
+        if (new_width <= new_height)
+            new_width += ATLAS_GROW_BY;
+        else
+            new_height += ATLAS_GROW_BY;
+
+        T new_atlas(new_width, new_height);
+        std::unordered_map<int, typename T::Entry> new_entries;
+        new_entries.reserve(entries.size());
+
+        failed = false;
+        for (const auto& kvp : entries) {
+            int w = atlas.entry_width(kvp.second);
+            int h = atlas.entry_height(kvp.second);
+            typename T::Entry res = new_atlas.pack(w, h);
+            if (!new_atlas.entry_valid(res)) {
+                failed = true;
+                break;
+            }
+            assert(new_atlas.entry_valid(res));
+            new_entries.insert({ kvp.first, res });
+        }
+
+        if (!failed) {
+            entries = std::move(new_entries);
+            atlas = std::move(new_atlas);
+            return;
+        }
+    } while (failed);
+}
+
+template<typename T>
 static void test_atlas_on_data(const char* name, const char* dumpname, int free_after_frames)
 {
     printf("Run %8s on data file: ", name);
     clock_t t0 = clock();
-    T atlas;
+    T atlas(ATLAS_SIZE_INIT, ATLAS_SIZE_INIT);
     
     std::unordered_map<int, int> id_to_timestamp;
     std::unordered_map<int, typename T::Entry> live_entries;
@@ -168,7 +209,17 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
                 }
                 else {
                     res = atlas.pack(test_entry.width, test_entry.height);
+                    if (!atlas.entry_valid(res)) {
+                        grow_atlas_and_repack(atlas, live_entries);
+                        res = atlas.pack(test_entry.width, test_entry.height);
+                        if (!atlas.entry_valid(res)) {
+                            printf("ERROR: failed to insert %ix%i after grow\n", test_entry.width, test_entry.height);
+                            exit(1);
+                        }
+                    }
+
                     ++insertions;
+                    assert(atlas.entry_valid(res));
                     live_entries.insert({test_entry.id, res});
                 }
                 id_to_timestamp[test_entry.id] = timestamp;
@@ -176,6 +227,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
 
             // free entries that were not used for a number of frames
             for (auto it = live_entries.begin(); it != live_entries.end(); ) {
+                assert(atlas.entry_valid(it->second));
                 int key = it->first;
                 int frames_ago = timestamp - id_to_timestamp[key];
                 if (frames_ago > free_after_frames) {
@@ -216,7 +268,7 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
 {
     printf("Run %8s on synthetic: ", name);
     clock_t t0 = clock();
-    T atlas;
+    T atlas(ATLAS_SIZE_INIT, ATLAS_SIZE_INIT);
     
     constexpr int INIT_ENTRY_COUNT = 2000;
     constexpr int LOOP_RUN_COUNT = 50;
@@ -234,7 +286,17 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
         int w = rand_size();
         int h = rand_size();
         typename T::Entry res = atlas.pack(w, h);
+        if (!atlas.entry_valid(res)) {
+            grow_atlas_and_repack(atlas, entries);
+            res = atlas.pack(w, h);
+            if (!atlas.entry_valid(res)) {
+                printf("ERROR: failed to insert %ix%i after grow\n", w, h);
+                exit(1);
+            }
+        }
+
         ++insertions;
+        assert(atlas.entry_valid(res));
         entries.insert({id_counter++, res});
     }
     
@@ -243,6 +305,7 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
         
         // remove a bunch of entries
         for (auto it = entries.begin(); it != entries.end(); ) {
+            assert(atlas.entry_valid(it->second));
             float rnd = (pcg32() & 1023) / 1024.0f;
             if (rnd < LOOP_FRACTION) {
                 atlas.release(it->second);
@@ -259,6 +322,15 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
             int w = rand_size();
             int h = rand_size();
             typename T::Entry res = atlas.pack(w, h);
+            if (!atlas.entry_valid(res)) {
+                grow_atlas_and_repack(atlas, entries);
+                res = atlas.pack(w, h);
+                if (!atlas.entry_valid(res)) {
+                    printf("ERROR: failed to insert %ix%i after grow\n", w, h);
+                    exit(1);
+                }
+            }
+
             ++insertions;
             entries.insert({id_counter++, res});
         }
@@ -288,23 +360,37 @@ struct test_on_mapbox
 {
     typedef mapbox::Bin* Entry;
     
-    test_on_mapbox()
+    test_on_mapbox(int width, int height)
     {
-        mapbox::ShelfPack::ShelfPackOptions options;
-        options.autoResize = true;
-        m_atlas = new mapbox::ShelfPack(1024, 1024, options);
+        m_atlas = new mapbox::ShelfPack(width, height);
     }
     ~test_on_mapbox()
     {
         delete m_atlas;
     }
+
+    // move assignment
+    test_on_mapbox& operator=(test_on_mapbox&& o) noexcept
+    {
+        if (this != &o) {
+            delete m_atlas;
+            m_atlas = o.m_atlas;
+            o.m_atlas = nullptr;
+        }
+        return *this;
+    }
+    // no copy operator, copy or move constructors
+    test_on_mapbox& operator=(const test_on_mapbox& o) = delete;
+    test_on_mapbox(const test_on_mapbox& o) = delete;
+    test_on_mapbox(test_on_mapbox&& o) = delete;
     
     Entry pack(int width, int height) { return m_atlas->packOne(-1, width, height); }
     void release(Entry& e) { m_atlas->unref(*e); }
     void shrink() { m_atlas->shrink(); }
     int width() const { return m_atlas->width(); }
     int height() const { return m_atlas->height(); }
-    
+
+    bool entry_valid(const Entry& e) const { return e != nullptr; }
     int entry_x(const Entry& e) const { return e->x; }
     int entry_y(const Entry& e) const { return e->y; }
     int entry_width(const Entry& e) const { return e->w; }
@@ -323,18 +409,39 @@ struct test_on_etagere
         EtagereAllocation e;
         int w;
         int h;
+        bool valid;
     };
-    static constexpr int ATLAS_WIDTH = 4096;
-    static constexpr int ATLAS_HEIGHT = 4096;
 
-    test_on_etagere()
+    test_on_etagere(int width, int height)
     {
-        m_atlas = etagere_atlas_allocator_new(ATLAS_WIDTH, ATLAS_HEIGHT);
+        m_width = width;
+        m_height = height;
+        m_atlas = etagere_atlas_allocator_new(width, height);
     }
     ~test_on_etagere()
     {
-        etagere_atlas_allocator_delete(m_atlas);
+        if (m_atlas)
+            etagere_atlas_allocator_delete(m_atlas);
     }
+
+    // move assignment
+    test_on_etagere& operator=(test_on_etagere&& o) noexcept
+    {
+        if (this != &o) {
+            if (m_atlas)
+                etagere_atlas_allocator_delete(m_atlas);
+            m_atlas = o.m_atlas;
+            m_width = o.m_width;
+            m_height = o.m_height;
+            o.m_atlas = nullptr;
+        }
+        return *this;
+    }
+    // no copy operator, copy or move constructors
+    test_on_etagere& operator=(const test_on_etagere& o) = delete;
+    test_on_etagere(const test_on_etagere& o) = delete;
+    test_on_etagere(test_on_etagere&& o) = delete;
+
     
     Entry pack(int width, int height)
     {
@@ -342,22 +449,23 @@ struct test_on_etagere
         EtagereStatus status = etagere_atlas_allocator_allocate(m_atlas, width, height, &res.e);
         res.w = width;
         res.h = height;
-        if (status)
-            return res;
-        else
-            throw("failed to alloc");
+        res.valid = status != 0;
+        return res;
     }
     void release(Entry& e) { etagere_atlas_allocator_deallocate(m_atlas, e.e.id); }
     void shrink() { }
-    int width() const { return ATLAS_WIDTH; }
-    int height() const { return ATLAS_HEIGHT; }
+    int width() const { return m_width; }
+    int height() const { return m_height; }
     
+    bool entry_valid(const Entry& e) const { return e.valid; }
     int entry_x(const Entry& e) const { return e.e.rectangle.min_x; }
     int entry_y(const Entry& e) const { return e.e.rectangle.min_y; }
     int entry_width(const Entry& e) const { return e.w; }
     int entry_height(const Entry& e) const { return e.h; }
 
     EtagereAtlasAllocator* m_atlas;
+    int m_width;
+    int m_height;
 };
 
 #endif // #if HAVE_ETAGERE
@@ -368,14 +476,29 @@ struct test_on_smol
 {
     typedef smol_atlas_entry_t* Entry;
     
-    test_on_smol()
+    test_on_smol(int width, int height)
     {
-        m_atlas = sma_create(1024, 1024);
+        m_atlas = sma_create(width, height);
     }
     ~test_on_smol()
     {
         sma_destroy(m_atlas);
     }
+    // move assignment
+    test_on_smol& operator=(test_on_smol&& o) noexcept
+    {
+        if (this != &o) {
+            sma_destroy(m_atlas);
+            m_atlas = o.m_atlas;
+            o.m_atlas = nullptr;
+        }
+        return *this;
+    }
+    // no copy operator, copy or move constructors
+    test_on_smol& operator=(const test_on_smol& o) = delete;
+    test_on_smol(const test_on_smol& o) = delete;
+    test_on_smol(test_on_smol&& o) = delete;
+
     
     Entry pack(int width, int height) { return sma_pack(m_atlas, width, height); }
     void release(Entry& e) { sma_entry_release(m_atlas, e); }
@@ -383,6 +506,7 @@ struct test_on_smol
     int width() const { return sma_get_width(m_atlas); }
     int height() const { return sma_get_height(m_atlas); }
     
+    bool entry_valid(const Entry& e) const { return e != nullptr; }
     int entry_x(const Entry& e) const { return sma_entry_get_x(e); }
     int entry_y(const Entry& e) const { return sma_entry_get_y(e); }
     int entry_width(const Entry& e) const { return sma_entry_get_width(e); }
