@@ -41,7 +41,19 @@ License is either MIT or Unlicense, whichever is more convenient for you.
 ### Usage
 
 Take `src/smol-atlas.cpp` and `src/smol-atlas.h`, plop them into your project and build.
-Include `src/smol-atlas.h` and use functions from there.
+Include `src/smol-atlas.h` and use functions from there. Something like:
+
+```c++
+smol_atlas_t* atlas = sma_atlas_create(100, 100);
+// add a 70x30 item
+smol_atlas_item_t* item = sma_item_add(atlas, 70, 30);
+if (item) {
+    // where did it end up?
+    int x = sma_item_x(item);
+    int y = sma_item_y(item);
+}
+sma_atlas_destroy(atlas);
+```
 
 Do *not* use `CMakeLists.txt` at the root of this repository! That one is for building the "test / benchmark"
 application, which also compiles several other texture packing libraries, and runs various tests on them.
