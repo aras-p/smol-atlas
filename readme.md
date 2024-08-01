@@ -1,3 +1,5 @@
+# :warning: WIP! :warning:
+
 # smol-atlas
 
 2D rectangular [bin packing](https://en.wikipedia.org/wiki/Bin_packing_problem)
@@ -44,7 +46,37 @@ Include `src/smol-atlas.h` and use functions from there.
 Do *not* use `CMakeLists.txt` at the root of this repository! That one is for building the "test / benchmark"
 application, which also compiles several other texture packing libraries, and runs various tests on them.
 
-### TODO
+### How good is it?
+
+I don't know!
+
+But, I did test it on a use case I have in mind. Within [Blender](https://www.blender.org/)
+video sequence editor, I took previs timeline of [Blender Studio Gold](https://studio.blender.org/films/gold/) project,
+turned thumbnails on, and zoomed & panned around it for a while. During all that time, I dumped data of all the thumbnails
+that would be needed at any point.
+
+The test then is this:
+- Try to "place" the needed thumbnails into the texture atlas,
+- Remove thumbnails from the atlas, if they have not been used for a number of frames.
+- As is typical within context of a video timeline, most of thumbnails have the same height, but many have varying width due
+  to cropping caused by strip length.
+
+250 frames of this data, ran 30 times in a loop, featuring 4700 unique thumbnails, produces 146 thousand item additions and 
+143 thousand item removals from the texture atlas. On a Windows PC (Ryzen 5950X), Visual Studio 2022 build, this produces:
+
+| Library | Atlas size | Atlas MPix | Time, ms |
+|---------|------------|-----------:|---------:|
+| **smol-atlas** | 3584x3072 | **11.0** | 40 |
+| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox | 4608x4096 | 18.9 | 315 |
+| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla | 3584x3072 | **11.0** | **31** |
+| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett | 8704x8704 | 75.8 | 267 |
+| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 3584x3072 | **11.0** | 583 |
+
+Note: `stb_rect_pack` does not support item removal. For this test, I just never remove them, and repack items when running out of space
+into a larger atlas. As you can see from the resulting atlas size, this does not seem like a suitable strategy for this particular
+use case with lots of removals and similar item sizes.
+
+### TODO finish this
 
 Etagere:
 
