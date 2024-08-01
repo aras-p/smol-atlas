@@ -1,6 +1,3 @@
-#include "../src/smol-atlas.h"
-#include "../external/mapbox-shelf-pack-cpp/include/mapbox/shelf-pack.hpp"
-
 #include <stdint.h>
 #include <stdio.h>
 #include <time.h>
@@ -100,7 +97,7 @@ static void dump_svg_rect(FILE* f, int x, int y, int width, int height, int r, i
 // -------------------------------------------------------------------
 
 template<typename T>
-static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entry*>& entries, const char* dumpname)
+static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entry>& entries, const char* dumpname)
 {
     FILE* f = fopen(dumpname, "wb");
     if (!f)
@@ -112,7 +109,7 @@ static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entr
     dump_svg_header(f, width < 1000 ? width : 8200, height < 1000 ? height : 8200);
     for (auto it : entries) {
         int key = it.first;
-        typename T::Entry* e = it.second;
+        typename T::Entry& e = it.second;
         int x = atlas.entry_x(e);
         int y = atlas.entry_y(e);
         int w = atlas.entry_width(e);
@@ -124,11 +121,11 @@ static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entr
 }
 
 template<typename T>
-size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename T::Entry*>& entries)
+size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename T::Entry>& entries)
 {
     size_t total = 0;
     for (auto it : entries) {
-        typename T::Entry* e = it.second;
+        typename T::Entry& e = it.second;
         int w = atlas.entry_width(e);
         int h = atlas.entry_height(e);
         total += w * h;
@@ -144,7 +141,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname)
     T atlas;
     
     std::unordered_map<int, int> id_to_timestamp;
-    std::unordered_map<int, typename T::Entry*> live_entries;
+    std::unordered_map<int, typename T::Entry> live_entries;
     
     constexpr int TEST_RUN_COUNT = 20;
     constexpr int FREE_AFTER_FRAMES = 30;
@@ -160,7 +157,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname)
             // process frame data for which entries are visible
             for (size_t test_idx = frame_start_idx; test_idx < frame_start_idx + frame_size; ++test_idx) {
                 const TestEntry& test_entry = s_unique_entries[s_test_entries[test_idx]];
-                typename T::Entry* res = nullptr;
+                typename T::Entry res;
                 auto it = live_entries.find(test_entry.id);
                 if (it != live_entries.end()) {
                     res = it->second;
@@ -226,13 +223,13 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     int insertions = 0;
     int removals = 0;
     int id_counter = 1;
-    std::unordered_map<int, typename T::Entry*> entries;
+    std::unordered_map<int, typename T::Entry> entries;
 
     // insert a bunch of initial entries
     for (int i = 0; i < INIT_ENTRY_COUNT; ++i) {
         int w = rand_size();
         int h = rand_size();
-        typename T::Entry* res = atlas.pack(w, h);
+        typename T::Entry res = atlas.pack(w, h);
         ++insertions;
         entries.insert({id_counter++, res});
     }
@@ -257,7 +254,7 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
         for (int i = 0; i < INIT_ENTRY_COUNT * LOOP_FRACTION; ++i) {
             int w = rand_size();
             int h = rand_size();
-            typename T::Entry* res = atlas.pack(w, h);
+            typename T::Entry res = atlas.pack(w, h);
             ++insertions;
             entries.insert({id_counter++, res});
         }
@@ -281,9 +278,11 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     dump_to_svg(atlas, entries, dumpname);
 }
 
+#include "../external/mapbox-shelf-pack-cpp/include/mapbox/shelf-pack.hpp"
+
 struct test_on_mapbox
 {
-    typedef mapbox::Bin Entry;
+    typedef mapbox::Bin* Entry;
     
     test_on_mapbox()
     {
@@ -296,23 +295,23 @@ struct test_on_mapbox
         delete m_atlas;
     }
     
-    Entry* pack(int width, int height) { return m_atlas->packOne(-1, width, height); }
-    void release(Entry* e) { m_atlas->unref(*e); }
+    Entry pack(int width, int height) { return m_atlas->packOne(-1, width, height); }
+    void release(Entry e) { m_atlas->unref(*e); }
     void shrink() { m_atlas->shrink(); }
     int width() const { return m_atlas->width(); }
     int height() const { return m_atlas->height(); }
     
-    int entry_x(const Entry* e) const { return e->x; }
-    int entry_y(const Entry* e) const { return e->y; }
-    int entry_width(const Entry* e) const { return e->w; }
-    int entry_height(const Entry* e) const { return e->h; }
+    int entry_x(const Entry e) const { return e->x; }
+    int entry_y(const Entry e) const { return e->y; }
+    int entry_width(const Entry e) const { return e->w; }
+    int entry_height(const Entry e) const { return e->h; }
 
     mapbox::ShelfPack* m_atlas;
 };
 
 struct test_on_smol
 {
-    typedef smol_atlas_entry_t Entry;
+    typedef smol_atlas_entry_t* Entry;
     
     test_on_smol()
     {
@@ -323,106 +322,19 @@ struct test_on_smol
         sma_destroy(m_atlas);
     }
     
-    Entry* pack(int width, int height) { return sma_pack(m_atlas, width, height); }
-    void release(Entry* e) { sma_entry_release(m_atlas, e); }
+    Entry pack(int width, int height) { return sma_pack(m_atlas, width, height); }
+    void release(Entry e) { sma_entry_release(m_atlas, e); }
     void shrink() { sma_shrink_to_fit(m_atlas); }
     int width() const { return sma_get_width(m_atlas); }
     int height() const { return sma_get_height(m_atlas); }
     
-    int entry_x(const Entry* e) const { return sma_entry_get_x(e); }
-    int entry_y(const Entry* e) const { return sma_entry_get_y(e); }
-    int entry_width(const Entry* e) const { return sma_entry_get_width(e); }
-    int entry_height(const Entry* e) const { return sma_entry_get_height(e); }
+    int entry_x(const Entry e) const { return sma_entry_get_x(e); }
+    int entry_y(const Entry e) const { return sma_entry_get_y(e); }
+    int entry_width(const Entry e) const { return sma_entry_get_width(e); }
+    int entry_height(const Entry e) const { return sma_entry_get_height(e); }
 
     smol_atlas_t* m_atlas;
 };
-
-// -------------------------------------------------------------------
-
-#if 0
-static int rand_size() { return (pcg32() & 63) * 4 + 3; }
-
-static void benchmark_mapbox()
-{
-    std::cout << "Bench mapbox" << std::endl;
-    ShelfPack::ShelfPackOptions options;
-    options.autoResize = true;
-
-    const int count = 20000;
-    std::vector<Bin*> bins;
-    bins.reserve(count);
-
-
-    // pack initial thumbs
-    // Mac M1 Max O2: 3.1ms
-    // Win Ryzen 5950X /O2: 4.0ms
-    pcg_state = 1;
-    std::clock_t t0 = std::clock();
-    ShelfPack sprite(10, 10, options);
-    for (int i = 0; i < count; ++i) {
-        int w = rand_size();
-        int h = rand_size();
-        Bin *res = sprite.packOne(-1, w, h);
-        if (!res) throw std::runtime_error("out of space");
-        bins.push_back(res);
-    }
-    sprite.shrink();
-    std::clock_t t1 = std::clock();
-    double dur = (t1 - t0) / (double) CLOCKS_PER_SEC;
-    printf("- packed      %i, got %ix%i atlas, took %.2fms\n", count, sprite.width(), sprite.height(), dur*1000.0);
-    dump_atlas_to_svg("res_mapbox1.svg", sprite.width(), sprite.height(), bins.size(), bins.data());
-
-    assert(sprite.width() == 32639);
-    assert(sprite.height() == 27989);
-
-    // remove half of thumbs
-    for (int i = 0; i < bins.size(); i += 2)
-    {
-        sprite.unref(*bins[i]);
-    }
-
-    // pack half of thumbs again
-    // Mac M1 Max O2: 174.1ms
-    // Win Ryzen 5950X /O2: 136.0ms
-    pcg_state = 2;
-    t0 = std::clock();
-    for (int i = 0; i < bins.size(); i += 2)
-    {
-        int w = rand_size();
-        int h = rand_size();
-        Bin *res = sprite.packOne(-1, w, h);
-        if (!res) throw std::runtime_error("out of space");
-        bins[i] = res;
-    }
-    t1 = std::clock();
-    dur = (t1 - t0) / (double) CLOCKS_PER_SEC;
-    printf("- packed half %i, got %ix%i atlas, took %.2fms\n", count/2, sprite.width(), sprite.height(), dur*1000.0);
-    dump_atlas_to_svg("res_mapbox2.svg", sprite.width(), sprite.height(), bins.size(), bins.data());
-    assert(sprite.width() == 32639);
-    assert(sprite.height() == 27989);
-
-    // pack a bunch, removing one and adding one
-    // Win Ryzen 5950X /O2: 3230.0ms
-    pcg_state = 3;
-    t0 = std::clock();
-    for (int i = 0; i < count * 10; ++i)
-    {
-        int idx = pcg32() % count;
-        sprite.unref(*bins[idx]);
-        int w = rand_size();
-        int h = rand_size();
-        Bin *res = sprite.packOne(-1, w, h);
-        if (!res) throw std::runtime_error("out of space");
-        bins[idx] = res;
-    }
-    t1 = std::clock();
-    dur = (t1 - t0) / (double) CLOCKS_PER_SEC;
-    printf("- packed rand %i, got %ix%i atlas, took %.2fms\n", count * 10, sprite.width(), sprite.height(), dur*1000.0);
-    dump_atlas_to_svg("res_mapbox3.svg", sprite.width(), sprite.height(), bins.size(), bins.data());
-    assert(sprite.width() == 32639);
-    assert(sprite.height() == 27989);
-}
-#endif
 
 // -------------------------------------------------------------------
 
