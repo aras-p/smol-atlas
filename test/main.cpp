@@ -246,7 +246,6 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
             ++timestamp;
         }
     }
-    atlas.shrink();
 
     clock_t t1 = clock();
     double dur = (t1 - t0) / double(CLOCKS_PER_SEC);
@@ -339,8 +338,6 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
         }
     }
     
-    atlas.shrink();
-
     clock_t t1 = clock();
     double dur = (t1 - t0) / double(CLOCKS_PER_SEC);
     
@@ -379,7 +376,6 @@ struct test_on_mapbox
     
     Entry pack(int width, int height) { return m_atlas->packOne(-1, width, height); }
     void release(Entry& e) { m_atlas->unref(*e); }
-    void shrink() { m_atlas->shrink(); }
     int width() const { return m_atlas->width(); }
     int height() const { return m_atlas->height(); }
 
@@ -439,7 +435,6 @@ struct test_on_stb_rectpack
         return e;
     }
     void release(Entry& e) {}
-    void shrink() {}
     int width() const { return m_width; }
     int height() const { return m_height; }
 
@@ -492,7 +487,6 @@ struct test_on_aw_rectallocator
         return e;
     }
     void release(Entry& e) { m_atlas.Free(e.handle); }
-    void shrink() {}
     int width() const { return m_width; }
     int height() const { return m_height; }
 
@@ -548,7 +542,6 @@ struct test_on_etagere
         return res;
     }
     void release(Entry& e) { etagere_atlas_allocator_deallocate(m_atlas, e.e.id); }
-    void shrink() { }
     int width() const { return m_width; }
     int height() const { return m_height; }
     
@@ -587,7 +580,6 @@ struct test_on_smol
     
     Entry pack(int width, int height) { return sma_pack(m_atlas, width, height); }
     void release(Entry& e) { sma_entry_release(m_atlas, e); }
-    void shrink() { sma_shrink_to_fit(m_atlas); }
     int width() const { return sma_get_width(m_atlas); }
     int height() const { return sma_get_height(m_atlas); }
     
