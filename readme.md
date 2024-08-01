@@ -62,16 +62,16 @@ The test then is this:
   to cropping caused by strip length.
 
 250 frames of this data, ran 30 times in a loop, featuring 4700 unique thumbnails, produces 146 thousand item additions and 
-143 thousand item removals from the texture atlas. On a Windows PC (Ryzen 5950X), Visual Studio 2022 build, all of the tested
-libraries produce an atlas of 3072x3072 pixels.
+143 thousand item removals from the texture atlas. All of the tested libraries produce an atlas of 3072x3072 pixels.
+"Win" time is Ryzen 5950X (VS2022), "Mac" time is M1 Max (Xcode15).
 
-| Library | Time, ms |
-|---------|---------:|
-| **smol-atlas**                                                                                                | 38 |
-| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | **32** |
-| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 105 |
-| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | 333 |
-| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 1140 |
+| Library | Mac time, ms | Win time, ms |
+|---------|-------------:|-------------:|
+| **smol-atlas**                                                                                                | 38 | 54 |
+| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | **32** | **40** |
+| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 105 | 158 |
+| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | 333 | 313 |
+| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 1140 | 1301 |
 
 My strategy for atlas resizing is the same for all the cases tested.
 - Initial atlas size is 1024x1024.
