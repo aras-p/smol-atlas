@@ -260,37 +260,37 @@ struct smol_atlas_t
     int m_height;
 };
 
-smol_atlas_t* sma_create(int width, int height)
+smol_atlas_t* sma_atlas_create(int width, int height)
 {
     return new smol_atlas_t(width, height);
 }
 
-void sma_destroy(smol_atlas_t* atlas)
+void sma_atlas_destroy(smol_atlas_t* atlas)
 {
     delete atlas;
 }
 
-int sma_get_width(const smol_atlas_t* atlas)
+int sma_atlas_width(const smol_atlas_t* atlas)
 {
     return atlas->m_width;
 }
 
-int sma_get_height(const smol_atlas_t* atlas)
+int sma_atlas_height(const smol_atlas_t* atlas)
 {
     return atlas->m_height;
 }
 
-smol_atlas_item_t* sma_add(smol_atlas_t* atlas, int width, int height)
+smol_atlas_item_t* sma_item_add(smol_atlas_t* atlas, int width, int height)
 {
     return atlas->pack(width, height);
 }
 
-void sma_remove(smol_atlas_t* atlas, smol_atlas_item_t* item)
+void sma_item_remove(smol_atlas_t* atlas, smol_atlas_item_t* item)
 {
     atlas->free_item(item);
 }
 
-void sma_clear(smol_atlas_t* atlas)
+void sma_atlas_clear(smol_atlas_t* atlas)
 {
     atlas->clear();
 }

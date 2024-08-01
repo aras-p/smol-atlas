@@ -569,22 +569,22 @@ struct test_on_smol
     
     test_on_smol(int width, int height)
     {
-        m_atlas = sma_create(width, height);
+        m_atlas = sma_atlas_create(width, height);
     }
     ~test_on_smol()
     {
-        sma_destroy(m_atlas);
+        sma_atlas_destroy(m_atlas);
     }
     void reinitialize(int width, int height)
     {
-        sma_destroy(m_atlas);
-        m_atlas = sma_create(width, height);
+        sma_atlas_destroy(m_atlas);
+        m_atlas = sma_atlas_create(width, height);
     }
     
-    Entry pack(int width, int height) { return sma_add(m_atlas, width, height); }
-    void release(Entry& e) { sma_remove(m_atlas, e); }
-    int width() const { return sma_get_width(m_atlas); }
-    int height() const { return sma_get_height(m_atlas); }
+    Entry pack(int width, int height) { return sma_item_add(m_atlas, width, height); }
+    void release(Entry& e) { sma_item_remove(m_atlas, e); }
+    int width() const { return sma_atlas_width(m_atlas); }
+    int height() const { return sma_atlas_height(m_atlas); }
     
     bool entry_valid(const Entry& e) const { return e != nullptr; }
     int entry_x(const Entry& e) const { return sma_item_x(e); }
