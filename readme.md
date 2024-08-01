@@ -1,3 +1,51 @@
+# smol-atlas
+
+2D rectangular [bin packing](https://en.wikipedia.org/wiki/Bin_packing_problem)
+utility that uses the Shelf Best Height Fit heuristic, and supports item removal.
+You could also call it a dynamic texture atlas allocator.
+
+### What is it?
+
+`smol-atlas` is a C++ library for packing small rectangles into a large rectangle.
+Possible application is to assemble icons, glyphs or thumbnails into a larger
+texture atlas.
+
+This sounds simple, but finding an optimal solution is actually [very hard](https://en.wikipedia.org/wiki/NP-completeness).
+There are many ways to approach the bin packing problem, but `smol-atlas` uses the Shelf Best
+Height Fit heuristic.  It works by dividing the total space into "shelves", each with a certain height.
+The allocator packs rectangles onto whichever shelf minimizes the amount of wasted vertical space.
+
+`smol-atlas` is simple, fast, and works best when the rectangles have similar heights (icons, glyphs
+and thumbnails are like this).  It is not a generalized bin packer, and can potentially waste a
+lot of space if the rectangles vary significantly in height.
+
+- Incoming items are placed into horizontal "shelves" based on item heights.
+- Within each shelf, there is a sorted list of free spans.
+- When an item is added, needed portion of the first suitable free span
+  is used.
+- When an item is removed, resulting free span is joined with any
+  neighboring spans.
+- Shelves, once created, stay at their height and location. Even if they
+  become empty, they are not removed nor joined with nearby shelves.
+
+Implementation uses STL `<vector>`, and some manual memory allocation
+with just regular `new` and `delete`. Custom allocators might be nice to
+do someday.
+
+At least C++11 is required.
+
+License is either MIT or Unlicense, whichever is more convenient for you.
+
+### Usage
+
+Take `src/smol-atlas.cpp` and `src/smol-atlas.h`, plop them into your project and build.
+Include `src/smol-atlas.h` and use functions from there.
+
+Do *not* use `CMakeLists.txt` at the root of this repository! That one is for building the "test / benchmark"
+application, which also compiles several other texture packing libraries, and runs various tests on them.
+
+### TODO
+
 Etagere:
 
 Build the dynamic libraries locally by:
