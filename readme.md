@@ -68,8 +68,8 @@ libraries produce an atlas of 3072x3072 pixels.
 | Library | Time, ms |
 |---------|---------:|
 | **smol-atlas**                                                                                                | 38 |
-| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 105 |
 | [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | **32** |
+| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 105 |
 | [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | 333 |
 | [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 1140 |
 
@@ -82,6 +82,10 @@ My strategy for atlas resizing is the same for all the cases tested.
     - But it also seems to help all or most of the other libraries too!
   - If the items can't be repacked into the same atlas size, increase the size and try again. However, I am not
     simply doubling the size, but rather increasing the smaller dimension by increments of 512.
+
+`smol-atlas` seems to only lose to Rust-based Étagère. It is faster than Mapbox `shelf-pack-cpp`, and quite a lot
+faster than the slightly mis-used STB `stb_rect_pack` library ("mis-used" because it does not natively support
+item removal).
 
 ### So is Étagère the best one?
 
@@ -101,3 +105,10 @@ Build the dynamic libraries locally by:
   `cargo install cbindgen` first.
 - These get copied into `external/etagere` of this project, for Windows (x64) and macOS (arm64).
 
+### Further reading
+
+- [A Thousand Ways to Pack the Bin](https://github.com/juj/RectangleBinPack/blob/master/RectangleBinPack.pdf) by Jukka Jylänki (2010)
+  is a good overview. It does not talk about item removal though.
+- [Improving texture atlas allocation in WebRender](https://nical.github.io/posts/etagere.html) by Nicolas Silva (2021) is really
+  good! This, among other things, describes the Rust-based Étagère library that is used by Firefox.
+- [Mapbox shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) is a C++ port of `shelf-pack` Javascript library from Mapbox.
