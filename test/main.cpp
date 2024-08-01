@@ -188,8 +188,8 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
     printf("Run %8s on data file: ", name);
     clock_t t0 = clock();
     T atlas(ATLAS_SIZE_INIT, ATLAS_SIZE_INIT);
-    
-    std::unordered_map<int, int> id_to_timestamp;
+
+    std::vector<int> id_to_timestamp(s_unique_entries.size(), -free_after_frames);
     std::unordered_map<int, typename T::Entry> live_entries;
     
     constexpr int TEST_RUN_COUNT = 30;
@@ -237,7 +237,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
                     atlas.release(it->second);
                     ++removals;
                     it = live_entries.erase(it);
-                    id_to_timestamp.erase(key);
+                    id_to_timestamp[key] = -free_after_frames;
                 }
                 else {
                     ++it;
