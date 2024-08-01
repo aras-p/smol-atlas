@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <time.h>
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -117,7 +118,7 @@ static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entr
     int width = atlas.width();
     int height = atlas.height();
 
-    dump_svg_header(f, width < 1000 ? width : 4200, height < 1000 ? height : 4200);
+    dump_svg_header(f, std::max(width, 4096), std::max(height, 4096));
     for (auto it : entries) {
         int key = it.first;
         typename T::Entry& e = it.second;
@@ -127,6 +128,7 @@ static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entr
         int h = atlas.entry_height(e);
         dump_svg_rect(f, x, y, w, h, (key * 12841) & 255, (key * 24571) & 255, (key * 36947) & 255);
     }
+    atlas.dump_svg_extra_info(f);
     dump_svg_footer(f, width, height, (int)entries.size());
     fclose(f);
 }
@@ -145,7 +147,7 @@ size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename
 }
 
 template<typename T>
-void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>& entries)
+void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>& entries, int e_id, int e_width, int e_height)
 {
     struct EntryInfo {
         int id;
@@ -153,23 +155,35 @@ void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>&
         int h;
     };
     std::vector<EntryInfo> infos;
-    infos.reserve(entries.size());
+    infos.reserve(entries.size() + 1);
     for (const auto& kvp : entries) {
         EntryInfo i{kvp.first, atlas.entry_width(kvp.second), atlas.entry_height(kvp.second) };
         infos.emplace_back(i);
     }
+    // make sure to include the entry that caused out of space condition in the caller
+    infos.emplace_back(EntryInfo{e_id, e_width, e_height});
+    
+    // sort repacked entries by decreasing height, improves behavior of most (all?) libraries
+    std::sort(infos.begin(), infos.end(), [](const EntryInfo& a, const EntryInfo& b) {
+        return a.h > b.h;
+    });
 
     int new_width = atlas.width();
     int new_height = atlas.height();
 
     bool failed = false;
-    do {
+    typename T::Entry ret_res = {};
+    while(true) {
         entries.clear();
-        if (new_width <= new_height)
-            new_width += ATLAS_GROW_BY;
-        else
-            new_height += ATLAS_GROW_BY;
-
+        
+        // try to reinitialize and repack into atlas.
+        //
+        // important! first try to just repack without changing the atlas
+        // size. otherwise algorithms that do not really support item removal
+        // will mostly keep on growing even if their current space might be
+        // mostly "removed" items.
+        //
+        // Curiously, this "first just repack" seems to help others too.
         atlas.reinitialize(new_width, new_height);
 
         failed = false;
@@ -182,13 +196,21 @@ void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>&
             assert(atlas.entry_valid(res));
             entries.insert({i.id, res});
         }
-    } while (failed);
+        if (!failed)
+            return;
+        
+        // Failed packing into current atlas size, increase it.
+        if (new_width <= new_height)
+            new_width += ATLAS_GROW_BY;
+        else
+            new_height += ATLAS_GROW_BY;
+    }
 }
 
 template<typename T>
 static void test_atlas_on_data(const char* name, const char* dumpname, int free_after_frames)
 {
-    printf("Run %8s on data file: ", name);
+    printf("Run %8s: ", name);
     clock_t t0 = clock();
     T atlas(ATLAS_SIZE_INIT, ATLAS_SIZE_INIT);
 
@@ -215,18 +237,13 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
                 }
                 else {
                     res = atlas.pack(test_entry.width, test_entry.height);
-                    if (!atlas.entry_valid(res)) {
-                        grow_atlas_and_repack(atlas, live_entries);
-                        res = atlas.pack(test_entry.width, test_entry.height);
-                        if (!atlas.entry_valid(res)) {
-                            printf("ERROR: failed to insert %ix%i after grow\n", test_entry.width, test_entry.height);
-                            exit(1);
-                        }
-                    }
-
                     ++insertions;
-                    assert(atlas.entry_valid(res));
-                    live_entries.insert({test_entry.id, res});
+                    if (atlas.entry_valid(res)) {
+                        live_entries.insert({test_entry.id, res});
+                    }
+                    else {
+                        grow_atlas_and_repack(atlas, live_entries, test_entry.id, test_entry.width, test_entry.height);
+                    }
                 }
                 id_to_timestamp[test_entry.id] = timestamp;
             }
@@ -256,10 +273,9 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
     int width = atlas.width();
     int height = atlas.height();
     size_t entry_total = count_total_entries_size(atlas, live_entries);
-    printf("%i (+%i/-%i %i runs): atlas %ix%i (%.1fMpix) used %.1fMpix (%.1f%%), %.1fms\n",
+    printf("%i (+%i/-%i %i runs): %ix%i (%.1fMpix) used %.1f%%, %.1fms\n",
            (int)live_entries.size(), insertions, removals, TEST_RUN_COUNT,
            width, height, width * height / 1.0e6,
-           entry_total / 1.0e6,
            entry_total * 100.0 / (width * height),
            dur * 1000.0);
     
@@ -290,19 +306,16 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     for (int i = 0; i < INIT_ENTRY_COUNT; ++i) {
         int w = rand_size();
         int h = rand_size();
-        typename T::Entry res = atlas.pack(w, h);
-        if (!atlas.entry_valid(res)) {
-            grow_atlas_and_repack(atlas, entries);
-            res = atlas.pack(w, h);
-            if (!atlas.entry_valid(res)) {
-                printf("ERROR: failed to insert %ix%i after grow\n", w, h);
-                exit(1);
-            }
-        }
+        int id = id_counter++;
 
+        typename T::Entry res = atlas.pack(w, h);
         ++insertions;
-        assert(atlas.entry_valid(res));
-        entries.insert({id_counter++, res});
+        if (atlas.entry_valid(res)) {
+            entries.insert({id, res});
+        }
+        else {
+            grow_atlas_and_repack(atlas, entries, id, w, h);
+        }
     }
     
     // run removal/insertion loops
@@ -326,18 +339,15 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
         for (int i = 0; i < INIT_ENTRY_COUNT * LOOP_FRACTION; ++i) {
             int w = rand_size();
             int h = rand_size();
+            int id = id_counter++;
             typename T::Entry res = atlas.pack(w, h);
-            if (!atlas.entry_valid(res)) {
-                grow_atlas_and_repack(atlas, entries);
-                res = atlas.pack(w, h);
-                if (!atlas.entry_valid(res)) {
-                    printf("ERROR: failed to insert %ix%i after grow\n", w, h);
-                    exit(1);
-                }
-            }
-
             ++insertions;
-            entries.insert({id_counter++, res});
+            if (atlas.entry_valid(res)) {
+                entries.insert({id, res});
+            }
+            else {
+                grow_atlas_and_repack(atlas, entries, id, w, h);
+            }
         }
     }
     
@@ -347,10 +357,9 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     int width = atlas.width();
     int height = atlas.height();
     size_t entry_total = count_total_entries_size(atlas, entries);
-    printf("%i (+%i/-%i): atlas %ix%i (%.1fMpix) used %.1fMpix (%.1f%%), %.1fms\n",
+    printf("%i (+%i/-%i): %ix%i (%.1fMpix) used %.1f%%, %.1fms\n",
            (int)entries.size(), insertions, removals,
            width, height, width * height / 1.0e6,
-           entry_total / 1.0e6,
            entry_total * 100.0 / (width * height),
            dur * 1000.0);
 
@@ -387,6 +396,10 @@ struct test_on_mapbox
     int entry_y(const Entry& e) const { return e->y; }
     int entry_width(const Entry& e) const { return e->w; }
     int entry_height(const Entry& e) const { return e->h; }
+    
+    void dump_svg_extra_info(FILE* f)
+    {
+    }
 
     mapbox::ShelfPack* m_atlas;
 };
@@ -412,6 +425,7 @@ struct test_on_stb_rectpack
     }
     void reinitialize(int width, int height)
     {
+        //m_removed.clear();
         m_nodes.resize(width);
         m_width = width;
         m_height = height;
@@ -437,7 +451,10 @@ struct test_on_stb_rectpack
         e.valid = r.was_packed != 0;
         return e;
     }
-    void release(Entry& e) {}
+    void release(Entry& e)
+    {
+        //m_removed.push_back(e);
+    }
     int width() const { return m_width; }
     int height() const { return m_height; }
 
@@ -446,10 +463,18 @@ struct test_on_stb_rectpack
     int entry_y(const Entry& e) const { return e.y; }
     int entry_width(const Entry& e) const { return e.w; }
     int entry_height(const Entry& e) const { return e.h; }
-
+    
+    void dump_svg_extra_info(FILE* f)
+    {
+        //for (auto e : m_removed) {
+        //    dump_svg_rect(f, e.x + e.w/8, e.y + e.h/8, e.w-e.w/4, e.h-e.h/4, 230, 230, 230);
+        //}
+    }
+    
     stbrp_context m_context;
     int m_width, m_height;
     std::vector<stbrp_node> m_nodes;
+    //std::vector<Entry> m_removed;
 };
 
 #include "../external/andrewwillmott_rectallocator/RectAllocator.h"
@@ -498,6 +523,10 @@ struct test_on_aw_rectallocator
     int entry_y(const Entry& e) const { return e.y; }
     int entry_width(const Entry& e) const { return e.w; }
     int entry_height(const Entry& e) const { return e.h; }
+    
+    void dump_svg_extra_info(FILE* f)
+    {
+    }
 
     nHL::cRectAllocator m_atlas;
     int m_width, m_height;
@@ -553,6 +582,10 @@ struct test_on_etagere
     int entry_y(const Entry& e) const { return e.e.rectangle.min_y; }
     int entry_width(const Entry& e) const { return e.w; }
     int entry_height(const Entry& e) const { return e.h; }
+    
+    void dump_svg_extra_info(FILE* f)
+    {
+    }
 
     EtagereAtlasAllocator* m_atlas;
     int m_width;
@@ -591,6 +624,10 @@ struct test_on_smol
     int entry_y(const Entry& e) const { return sma_item_y(e); }
     int entry_width(const Entry& e) const { return sma_item_width(e); }
     int entry_height(const Entry& e) const { return sma_item_height(e); }
+
+    void dump_svg_extra_info(FILE* f)
+    {
+    }
 
     smol_atlas_t* m_atlas;
 };
