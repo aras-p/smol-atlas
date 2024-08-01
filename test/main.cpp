@@ -34,6 +34,11 @@ static std::vector<std::pair<int, int>> s_test_frames;
 
 static void load_test_data(const char* filename)
 {
+    s_unique_entries.clear();
+    s_entry_map.clear();
+    s_test_entries.clear();
+    s_test_frames.clear();
+
     FILE* f = fopen(filename, "rt");
     if (!f) {
         printf("ERROR: could not open test file '%s'\n", filename);
@@ -106,7 +111,7 @@ static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entr
     int width = atlas.width();
     int height = atlas.height();
 
-    dump_svg_header(f, width < 1000 ? width : 8200, height < 1000 ? height : 8200);
+    dump_svg_header(f, width < 1000 ? width : 4200, height < 1000 ? height : 4200);
     for (auto it : entries) {
         int key = it.first;
         typename T::Entry& e = it.second;
@@ -134,7 +139,7 @@ size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename
 }
 
 template<typename T>
-static void test_atlas_on_data(const char* name, const char* dumpname)
+static void test_atlas_on_data(const char* name, const char* dumpname, int free_after_frames)
 {
     printf("Run %8s on data file: ", name);
     clock_t t0 = clock();
@@ -143,8 +148,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname)
     std::unordered_map<int, int> id_to_timestamp;
     std::unordered_map<int, typename T::Entry> live_entries;
     
-    constexpr int TEST_RUN_COUNT = 20;
-    constexpr int FREE_AFTER_FRAMES = 30;
+    constexpr int TEST_RUN_COUNT = 30;
 
     int insertions = 0;
     int removals = 0;
@@ -174,7 +178,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname)
             for (auto it = live_entries.begin(); it != live_entries.end(); ) {
                 int key = it->first;
                 int frames_ago = timestamp - id_to_timestamp[key];
-                if (frames_ago > FREE_AFTER_FRAMES) {
+                if (frames_ago > free_after_frames) {
                     atlas.release(it->second);
                     ++removals;
                     it = live_entries.erase(it);
@@ -214,9 +218,9 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     clock_t t0 = clock();
     T atlas;
     
-    constexpr int INIT_ENTRY_COUNT = 5000;
+    constexpr int INIT_ENTRY_COUNT = 2000;
     constexpr int LOOP_RUN_COUNT = 50;
-    constexpr float LOOP_FRACTION = 0.4f;
+    constexpr float LOOP_FRACTION = 0.3f;
     
     pcg_state = 1;
 
@@ -350,8 +354,19 @@ int main()
     test_atlas_synthetic<test_on_smol>("smol", "out_syn_smol.svg");
 
     load_test_data("test/thumbs-gold.txt");
-    test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_mapbox.svg");
-    test_atlas_on_data<test_on_smol>("smol", "out_data_smol.svg");
+    const int free_frames_gold = 30;
+    test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_gold_mapbox.svg", free_frames_gold);
+    test_atlas_on_data<test_on_smol>("smol", "out_data_gold_smol.svg", free_frames_gold);
+
+    load_test_data("test/thumbs-wingit.txt");
+    const int free_frames_wingit = 50;
+    test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_wingit_mapbox.svg", free_frames_wingit);
+    test_atlas_on_data<test_on_smol>("smol", "out_data_wingit_smol.svg", free_frames_wingit);
+
+    load_test_data("test/thumbs-sprite-fright.txt");
+    const int free_frames_sprite = 5;
+    test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_spritefright_mapbox.svg", free_frames_sprite);
+    test_atlas_on_data<test_on_smol>("smol", "out_data_spritefright_smol.svg", free_frames_sprite);
 
     return 0;
 }
