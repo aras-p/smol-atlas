@@ -627,8 +627,8 @@ int main()
     #if HAVE_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_wingit_etagere.svg", free_frames_wingit);
     #endif
-    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_wingit);
-    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_gold_awralloc.svg", free_frames_wingit);
+    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_wingit_rectpack.svg", free_frames_wingit);
+    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_wingit_awralloc.svg", free_frames_wingit);
     test_atlas_on_data<test_on_smol>("smol", "out_data_wingit_smol.svg", free_frames_wingit);
 
     load_test_data("test/thumbs-sprite-fright.txt");
@@ -637,8 +637,8 @@ int main()
     #if HAVE_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_spritefright_etagere.svg", free_frames_sprite);
     #endif
-    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_sprite);
-    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_gold_awralloc.svg", free_frames_sprite);
+    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_spritefright_rectpack.svg", free_frames_sprite);
+    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_spritefright_awralloc.svg", free_frames_sprite);
     test_atlas_on_data<test_on_smol>("smol", "out_data_spritefright_smol.svg", free_frames_sprite);
 
     return 0;
