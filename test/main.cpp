@@ -144,37 +144,40 @@ size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename
 template<typename T>
 void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>& entries)
 {
+    struct EntryInfo {
+        int id;
+        int w;
+        int h;
+    };
+    std::vector<EntryInfo> infos;
+    infos.reserve(entries.size());
+    for (const auto& kvp : entries) {
+        EntryInfo i{kvp.first, atlas.entry_width(kvp.second), atlas.entry_height(kvp.second) };
+        infos.emplace_back(i);
+    }
+
     int new_width = atlas.width();
     int new_height = atlas.height();
 
     bool failed = false;
     do {
+        entries.clear();
         if (new_width <= new_height)
             new_width += ATLAS_GROW_BY;
         else
             new_height += ATLAS_GROW_BY;
 
-        T new_atlas(new_width, new_height);
-        std::unordered_map<int, typename T::Entry> new_entries;
-        new_entries.reserve(entries.size());
+        atlas.reinitialize(new_width, new_height);
 
         failed = false;
-        for (const auto& kvp : entries) {
-            int w = atlas.entry_width(kvp.second);
-            int h = atlas.entry_height(kvp.second);
-            typename T::Entry res = new_atlas.pack(w, h);
-            if (!new_atlas.entry_valid(res)) {
+        for (const auto& i : infos) {
+            typename T::Entry res = atlas.pack(i.w, i.h);
+            if (!atlas.entry_valid(res)) {
                 failed = true;
                 break;
             }
-            assert(new_atlas.entry_valid(res));
-            new_entries.insert({ kvp.first, res });
-        }
-
-        if (!failed) {
-            entries = std::move(new_entries);
-            atlas = std::move(new_atlas);
-            return;
+            assert(atlas.entry_valid(res));
+            entries.insert({i.id, res});
         }
     } while (failed);
 }
@@ -368,21 +371,11 @@ struct test_on_mapbox
     {
         delete m_atlas;
     }
-
-    // move assignment
-    test_on_mapbox& operator=(test_on_mapbox&& o) noexcept
+    void reinitialize(int width, int height)
     {
-        if (this != &o) {
-            delete m_atlas;
-            m_atlas = o.m_atlas;
-            o.m_atlas = nullptr;
-        }
-        return *this;
+        delete m_atlas;
+        m_atlas = new mapbox::ShelfPack(width, height);
     }
-    // no copy operator, copy or move constructors
-    test_on_mapbox& operator=(const test_on_mapbox& o) = delete;
-    test_on_mapbox(const test_on_mapbox& o) = delete;
-    test_on_mapbox(test_on_mapbox&& o) = delete;
     
     Entry pack(int width, int height) { return m_atlas->packOne(-1, width, height); }
     void release(Entry& e) { m_atlas->unref(*e); }
@@ -398,6 +391,69 @@ struct test_on_mapbox
 
     mapbox::ShelfPack* m_atlas;
 };
+
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "../external/stb_rect_pack.h"
+
+struct test_on_stb_rectpack
+{
+    struct Entry {
+        int x, y;
+        int w, h;
+        bool valid;
+    };
+
+    test_on_stb_rectpack(int width, int height)
+        : m_context(), m_width(width), m_height(height), m_nodes(width)
+    {
+        stbrp_init_target(&m_context, width, height, m_nodes.data(), (int)m_nodes.size());
+    }
+    ~test_on_stb_rectpack()
+    {
+    }
+    void reinitialize(int width, int height)
+    {
+        m_nodes.resize(width);
+        m_width = width;
+        m_height = height;
+        stbrp_init_target(&m_context, width, height, m_nodes.data(), (int)m_nodes.size());
+    }
+
+    Entry pack(int width, int height)
+    {
+        stbrp_rect r;
+        r.id = 0;
+        r.w = width;
+        r.h = height;
+        r.x = 0;
+        r.y = 0;
+        r.was_packed = 0;
+        stbrp_pack_rects(&m_context, &r, 1);
+
+        Entry e;
+        e.x = r.x;
+        e.y = r.y;
+        e.w = width;
+        e.h = height;
+        e.valid = r.was_packed != 0;
+        return e;
+    }
+    void release(Entry& e) {}
+    void shrink() {}
+    int width() const { return m_width; }
+    int height() const { return m_height; }
+
+    bool entry_valid(const Entry& e) const { return e.valid; }
+    int entry_x(const Entry& e) const { return e.x; }
+    int entry_y(const Entry& e) const { return e.y; }
+    int entry_width(const Entry& e) const { return e.w; }
+    int entry_height(const Entry& e) const { return e.h; }
+
+    stbrp_context m_context;
+    int m_width, m_height;
+    std::vector<stbrp_node> m_nodes;
+};
+
 
 #if HAVE_ETAGERE
 
@@ -420,28 +476,15 @@ struct test_on_etagere
     }
     ~test_on_etagere()
     {
-        if (m_atlas)
-            etagere_atlas_allocator_delete(m_atlas);
+        etagere_atlas_allocator_delete(m_atlas);
     }
-
-    // move assignment
-    test_on_etagere& operator=(test_on_etagere&& o) noexcept
+    void reinitialize(int width, int height)
     {
-        if (this != &o) {
-            if (m_atlas)
-                etagere_atlas_allocator_delete(m_atlas);
-            m_atlas = o.m_atlas;
-            m_width = o.m_width;
-            m_height = o.m_height;
-            o.m_atlas = nullptr;
-        }
-        return *this;
+        etagere_atlas_allocator_delete(m_atlas);
+        m_width = width;
+        m_height = height;
+        m_atlas = etagere_atlas_allocator_new(width, height);
     }
-    // no copy operator, copy or move constructors
-    test_on_etagere& operator=(const test_on_etagere& o) = delete;
-    test_on_etagere(const test_on_etagere& o) = delete;
-    test_on_etagere(test_on_etagere&& o) = delete;
-
     
     Entry pack(int width, int height)
     {
@@ -484,21 +527,11 @@ struct test_on_smol
     {
         sma_destroy(m_atlas);
     }
-    // move assignment
-    test_on_smol& operator=(test_on_smol&& o) noexcept
+    void reinitialize(int width, int height)
     {
-        if (this != &o) {
-            sma_destroy(m_atlas);
-            m_atlas = o.m_atlas;
-            o.m_atlas = nullptr;
-        }
-        return *this;
+        sma_destroy(m_atlas);
+        m_atlas = sma_create(width, height);
     }
-    // no copy operator, copy or move constructors
-    test_on_smol& operator=(const test_on_smol& o) = delete;
-    test_on_smol(const test_on_smol& o) = delete;
-    test_on_smol(test_on_smol&& o) = delete;
-
     
     Entry pack(int width, int height) { return sma_pack(m_atlas, width, height); }
     void release(Entry& e) { sma_entry_release(m_atlas, e); }
@@ -527,6 +560,7 @@ int main()
     #if HAVE_ETAGERE
     test_atlas_synthetic<test_on_etagere>("etagere", "out_syn_etagere.svg");
     #endif
+    test_atlas_synthetic<test_on_stb_rectpack>("rectpack", "out_syn_rectpack.svg");
     test_atlas_synthetic<test_on_smol>("smol", "out_syn_smol.svg");
 
     load_test_data("test/thumbs-gold.txt");
@@ -535,6 +569,7 @@ int main()
     #if HAVE_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_gold_etagere.svg", free_frames_gold);
     #endif
+    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_gold);
     test_atlas_on_data<test_on_smol>("smol", "out_data_gold_smol.svg", free_frames_gold);
 
     load_test_data("test/thumbs-wingit.txt");
@@ -543,6 +578,7 @@ int main()
     #if HAVE_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_wingit_etagere.svg", free_frames_wingit);
     #endif
+    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_wingit);
     test_atlas_on_data<test_on_smol>("smol", "out_data_wingit_smol.svg", free_frames_wingit);
 
     load_test_data("test/thumbs-sprite-fright.txt");
@@ -551,6 +587,7 @@ int main()
     #if HAVE_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_spritefright_etagere.svg", free_frames_sprite);
     #endif
+    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_sprite);
     test_atlas_on_data<test_on_smol>("smol", "out_data_spritefright_smol.svg", free_frames_sprite);
 
     return 0;
