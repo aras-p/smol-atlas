@@ -226,10 +226,11 @@ struct smol_shelf_t
 
 struct smol_atlas_t
 {
-    explicit smol_atlas_t(int w, int h)
+    explicit smol_atlas_t(int w, int h, bool grow)
     {
         m_width = w > 0 ? w : 64;
         m_height = h > 0 ? h : 64;
+        m_auto_grow = grow;
     }
 
     smol_atlas_entry_t* pack(int w, int h)
@@ -269,6 +270,10 @@ struct smol_atlas_t
             m_shelves.emplace_back(std::make_unique<smol_shelf_t>(top_y, m_width, h, shelf_index));
             return m_shelves.back()->alloc_entry(w, h);
         }
+
+        // if we can't grow, fail packing now
+        if (!m_auto_grow)
+            return nullptr;
 
         // have to grow the atlas:
         // - double the smaller dimension (if equal, grow width)
@@ -330,11 +335,12 @@ struct smol_atlas_t
     std::vector<std::unique_ptr<smol_shelf_t>> m_shelves;
     int m_width;
     int m_height;
+    bool m_auto_grow;
 };
 
-smol_atlas_t* sma_create(int init_width, int init_height)
+smol_atlas_t* sma_create(int init_width, int init_height, bool auto_grow)
 {
-    return new smol_atlas_t(init_width, init_height);
+    return new smol_atlas_t(init_width, init_height, auto_grow);
 }
 
 void sma_destroy(smol_atlas_t* atlas)

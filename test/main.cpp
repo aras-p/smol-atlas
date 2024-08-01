@@ -566,7 +566,7 @@ struct test_on_smol
     
     test_on_smol(int width, int height)
     {
-        m_atlas = sma_create(width, height);
+        m_atlas = sma_create(width, height, true);
     }
     ~test_on_smol()
     {

@@ -5,7 +5,7 @@
 struct smol_atlas_t;
 struct smol_atlas_entry_t;
 
-smol_atlas_t* sma_create(int init_width, int init_height);
+smol_atlas_t* sma_create(int init_width, int init_height, bool auto_grow = false);
 void sma_destroy(smol_atlas_t* atlas);
 
 int sma_get_width(const smol_atlas_t* atlas);

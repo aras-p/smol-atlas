@@ -149,7 +149,7 @@ static void test_pack_considers_max_dimensions_for_space_reuse()
 
 static void test_pack_results_minimal_size()
 {
-    smol_atlas_t* atlas = sma_create(10, 10);
+    smol_atlas_t* atlas = sma_create(10, 10, true);
 
     smol_atlas_entry_t* res0 = sma_pack(atlas, 10, 10);
     smol_atlas_entry_t* res1 = sma_pack(atlas, 5, 15);
@@ -267,7 +267,7 @@ static void test_resize_larger()
 
 static void test_autoresize_grows_width_then_height()
 {
-    smol_atlas_t* atlas = sma_create(10, 10);
+    smol_atlas_t* atlas = sma_create(10, 10, true);
 
     smol_atlas_entry_t* e1 = sma_pack(atlas, 10, 10);
     CHECK_ENTRY(e1, 0, 0, 10, 10);
@@ -304,7 +304,7 @@ static void test_autoresize_grows_width_then_height()
 
 static void test_autoresize_on_large_requests()
 {
-    smol_atlas_t* atlas = sma_create(10, 10);
+    smol_atlas_t* atlas = sma_create(10, 10, true);
 
     smol_atlas_entry_t* e1 = sma_pack(atlas, 20, 10);
     CHECK_ENTRY(e1, 0, 0, 20, 10);
