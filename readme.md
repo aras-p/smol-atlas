@@ -69,13 +69,26 @@ libraries produce an atlas of 3072x3072 pixels.
 |---------|---------:|
 | **smol-atlas**                                                                                                | 38 |
 | [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 105 |
-| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | 32 |
+| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | **32** |
 | [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | 333 |
 | [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 1140 |
 
-### TODO finish this
+My strategy for atlas resizing is the same for all the cases tested.
+- Initial atlas size is 1024x1024.
+- When an item no longer fits into atlas:
+  - First just try to repack all the items into atlas *of the same size*.
+    - This particularly makes cases that *do not actually support item removal* (like `stb_rect_pack`) "actually work",
+      since it gives them a chance to "clean up" all the would-be-unused space.
+    - But it also seems to help all or most of the other libraries too!
+  - If the items can't be repacked into the same atlas size, increase the size and try again. However, I am not
+    simply doubling the size, but rather increasing the smaller dimension by increments of 512.
 
-Etagere:
+### So is Étagère the best one?
+
+Yes it does look very good ([github](https://github.com/nical/etagere) / [blog post](https://nical.github.io/posts/etagere.html)).
+But it is written in Rust, which may or might not suit your needs.
+
+For testing it *here*, I compiled it as a shared library to be used from C. Notes to myself how I did it:
 
 Build the dynamic libraries locally by:
 - Edit `Cargo.toml` and add this section:
@@ -86,4 +99,5 @@ Build the dynamic libraries locally by:
 - Build the dynamic library with `cargo build --release --features "ffi"`, it will be under `target/release`.
 - Generate header file with `cbindgen --config cbindgen.toml --crate etagere --output etagere.h`. You might need to do
   `cargo install cbindgen` first.
+- These get copied into `external/etagere` of this project, for Windows (x64) and macOS (arm64).
 
