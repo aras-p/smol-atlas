@@ -23,7 +23,7 @@
 // with just regular `new` and `delete`. Custom allocators might be nice to
 // do someday.
 //
-// Written and tested with C++14 and C++17.
+// At least C++11 is required.
 
 struct smol_atlas_t;
 struct smol_atlas_item_t;

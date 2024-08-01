@@ -4,7 +4,6 @@
 #include "smol-atlas.h"
 
 #include <assert.h>
-#include <memory>
 #include <vector>
 
 static inline int max_i(int a, int b)
@@ -199,6 +198,11 @@ struct smol_atlas_t
         m_width = w > 0 ? w : 64;
         m_height = h > 0 ? h : 64;
     }
+    
+    ~smol_atlas_t()
+    {
+        clear();
+    }
 
     smol_atlas_item_t* pack(int w, int h)
     {
@@ -224,7 +228,7 @@ struct smol_atlas_t
             int score = shelf_h - h;
             if (score < best_score) {
                 best_score = score;
-                best_shelf = shelf.get();
+                best_shelf = shelf;
             }
         }
 
@@ -234,8 +238,9 @@ struct smol_atlas_t
         // no shelf with enough space: add a new shelf
         if (w <= m_width && h <= m_height - top_y) {
             int shelf_index = int(m_shelves.size());
-            m_shelves.emplace_back(std::make_unique<smol_shelf_t>(top_y, m_width, h, shelf_index));
-            return m_shelves.back()->alloc_item(w, h);
+            smol_shelf_t* shelf = new smol_shelf_t(top_y, m_width, h, shelf_index);
+            m_shelves.emplace_back(shelf);
+            return shelf->alloc_item(w, h);
         }
 
         // out of space
@@ -252,10 +257,12 @@ struct smol_atlas_t
 
     void clear()
     {
+        for (auto s : m_shelves)
+            delete s;
         m_shelves.clear();
     }
 
-    std::vector<std::unique_ptr<smol_shelf_t>> m_shelves;
+    std::vector<smol_shelf_t*> m_shelves;
     int m_width;
     int m_height;
 };
