@@ -454,6 +454,58 @@ struct test_on_stb_rectpack
     std::vector<stbrp_node> m_nodes;
 };
 
+#include "../external/andrewwillmott_rectallocator/RectAllocator.h"
+
+struct test_on_aw_rectallocator
+{
+    struct Entry {
+        nHL::tRectRef handle;
+        int x, y;
+        int w, h;
+    };
+
+    test_on_aw_rectallocator(int width, int height)
+        : m_atlas({width, height}), m_width(width), m_height(height)
+    {
+    }
+    ~test_on_aw_rectallocator()
+    {
+    }
+    void reinitialize(int width, int height)
+    {
+        m_atlas.Clear({width, height});
+        m_width = width;
+        m_height = height;
+    }
+
+    Entry pack(int width, int height)
+    {
+        Entry e;
+        e.handle = m_atlas.Alloc({width, height});
+        if (e.handle != nHL::kNullRectRef) {
+            const nHL::cRectInfo& info = m_atlas.RectInfo(e.handle);
+            e.x = info.mOrigin.x;
+            e.y = info.mOrigin.y;
+            e.w = width;
+            e.h = height;
+        }
+        return e;
+    }
+    void release(Entry& e) { m_atlas.Free(e.handle); }
+    void shrink() {}
+    int width() const { return m_width; }
+    int height() const { return m_height; }
+
+    bool entry_valid(const Entry& e) const { return e.handle != nHL::kNullRectRef; }
+    int entry_x(const Entry& e) const { return e.x; }
+    int entry_y(const Entry& e) const { return e.y; }
+    int entry_width(const Entry& e) const { return e.w; }
+    int entry_height(const Entry& e) const { return e.h; }
+
+    nHL::cRectAllocator m_atlas;
+    int m_width, m_height;
+};
+
 
 #if HAVE_ETAGERE
 
@@ -561,6 +613,7 @@ int main()
     test_atlas_synthetic<test_on_etagere>("etagere", "out_syn_etagere.svg");
     #endif
     test_atlas_synthetic<test_on_stb_rectpack>("rectpack", "out_syn_rectpack.svg");
+    test_atlas_synthetic<test_on_aw_rectallocator>("awralloc", "out_syn_awralloc.svg");
     test_atlas_synthetic<test_on_smol>("smol", "out_syn_smol.svg");
 
     load_test_data("test/thumbs-gold.txt");
@@ -570,6 +623,7 @@ int main()
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_gold_etagere.svg", free_frames_gold);
     #endif
     test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_gold);
+    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_gold_awralloc.svg", free_frames_gold);
     test_atlas_on_data<test_on_smol>("smol", "out_data_gold_smol.svg", free_frames_gold);
 
     load_test_data("test/thumbs-wingit.txt");
@@ -579,6 +633,7 @@ int main()
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_wingit_etagere.svg", free_frames_wingit);
     #endif
     test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_wingit);
+    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_gold_awralloc.svg", free_frames_wingit);
     test_atlas_on_data<test_on_smol>("smol", "out_data_wingit_smol.svg", free_frames_wingit);
 
     load_test_data("test/thumbs-sprite-fright.txt");
@@ -588,6 +643,7 @@ int main()
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_spritefright_etagere.svg", free_frames_sprite);
     #endif
     test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_sprite);
+    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_gold_awralloc.svg", free_frames_sprite);
     test_atlas_on_data<test_on_smol>("smol", "out_data_spritefright_smol.svg", free_frames_sprite);
 
     return 0;

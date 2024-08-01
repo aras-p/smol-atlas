@@ -9,10 +9,12 @@ target_sources(smol-atlas PRIVATE
 	src/smol-atlas.h
 	test/main.cpp
 	test/smol-atlas-test.cpp
+	external/stb_rect_pack.h
     external/mapbox-shelf-pack-cpp/include/mapbox/shelf-pack.hpp
+	external/andrewwillmott_rectallocator/RectAllocator.cpp
+	external/andrewwillmott_rectallocator/RectAllocator.h
 )
 target_compile_features(smol-atlas PRIVATE cxx_std_17)
-message("CPU ${CMAKE_SYSTEM_PROCESSOR}")
 
 if (WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
 	target_link_libraries(smol-atlas "${CMAKE_SOURCE_DIR}/external/etagere/etagere.dll.lib")
