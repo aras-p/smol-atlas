@@ -565,7 +565,7 @@ struct test_on_etagere
 
 struct test_on_smol
 {
-    typedef smol_atlas_entry_t* Entry;
+    typedef smol_atlas_item_t* Entry;
     
     test_on_smol(int width, int height)
     {
@@ -581,16 +581,16 @@ struct test_on_smol
         m_atlas = sma_create(width, height);
     }
     
-    Entry pack(int width, int height) { return sma_pack(m_atlas, width, height); }
-    void release(Entry& e) { sma_entry_release(m_atlas, e); }
+    Entry pack(int width, int height) { return sma_add(m_atlas, width, height); }
+    void release(Entry& e) { sma_remove(m_atlas, e); }
     int width() const { return sma_get_width(m_atlas); }
     int height() const { return sma_get_height(m_atlas); }
     
     bool entry_valid(const Entry& e) const { return e != nullptr; }
-    int entry_x(const Entry& e) const { return sma_entry_get_x(e); }
-    int entry_y(const Entry& e) const { return sma_entry_get_y(e); }
-    int entry_width(const Entry& e) const { return sma_entry_get_width(e); }
-    int entry_height(const Entry& e) const { return sma_entry_get_height(e); }
+    int entry_x(const Entry& e) const { return sma_item_x(e); }
+    int entry_y(const Entry& e) const { return sma_item_y(e); }
+    int entry_width(const Entry& e) const { return sma_item_width(e); }
+    int entry_height(const Entry& e) const { return sma_item_height(e); }
 
     smol_atlas_t* m_atlas;
 };

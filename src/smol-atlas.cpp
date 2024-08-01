@@ -12,9 +12,9 @@ static inline int max_i(int a, int b)
     return a > b ? a : b;
 }
 
-struct smol_atlas_entry_t
+struct smol_atlas_item_t
 {
-    explicit smol_atlas_entry_t(int x_, int y_, int w_, int h_, int shelf_)
+    explicit smol_atlas_item_t(int x_, int y_, int w_, int h_, int shelf_)
     : x(x_), y(y_), width(w_), height(h_), shelf_index(shelf_)
     {
     }
@@ -45,7 +45,7 @@ struct smol_shelf_t
     ~smol_shelf_t()
     {
         // release the entries
-        for (smol_atlas_entry_t* e : m_entries) {
+        for (smol_atlas_item_t* e : m_entries) {
             delete e;
         }
 
@@ -69,7 +69,7 @@ struct smol_shelf_t
         return width;
     }
 
-    smol_atlas_entry_t* alloc_entry(int w, int h)
+    smol_atlas_item_t* alloc_item(int w, int h)
     {
         if (h > m_height)
             return nullptr;
@@ -101,7 +101,7 @@ struct smol_shelf_t
             free_spans_remove(prev, it);
         }
 
-        smol_atlas_entry_t* e = new smol_atlas_entry_t(x, m_y, w, h, m_index);
+        smol_atlas_item_t* e = new smol_atlas_item_t(x, m_y, w, h, m_index);
         m_entries.emplace_back(e);
         return e;
     }
@@ -129,14 +129,14 @@ struct smol_shelf_t
         merge_free_spans(prev, free_e);
     }
 
-    void free_entry(smol_atlas_entry_t* e)
+    void free_item(smol_atlas_item_t* e)
     {
         assert(e);
         assert(e->shelf_index == m_index);
         assert(e->y == m_y);
         add_free_span(e->x, e->width);
 
-        // remove the actual entry
+        // remove the actual item
         auto it = std::find(m_entries.begin(), m_entries.end(), e);
         assert(it != m_entries.end());
         size_t index = std::distance(m_entries.begin(), it);
@@ -187,7 +187,7 @@ struct smol_shelf_t
     const int m_height;
     const int m_index;
 
-    std::vector<smol_atlas_entry_t*> m_entries;
+    std::vector<smol_atlas_item_t*> m_entries;
     smol_free_span_t* m_free_spans;
 };
 
@@ -200,7 +200,7 @@ struct smol_atlas_t
         m_height = h > 0 ? h : 64;
     }
 
-    smol_atlas_entry_t* pack(int w, int h)
+    smol_atlas_item_t* pack(int w, int h)
     {
         // find best shelf
         smol_shelf_t* best_shelf = nullptr;
@@ -218,7 +218,7 @@ struct smol_atlas_t
                 continue; // does not have enough space
 
             if (shelf_h == h) // exact height fit, use it
-                return shelf->alloc_entry(w, h);
+                return shelf->alloc_item(w, h);
 
             // otherwise the shelf is too tall, track best one
             int score = shelf_h - h;
@@ -229,23 +229,25 @@ struct smol_atlas_t
         }
 
         if (best_shelf)
-            return best_shelf->alloc_entry(w, h);
+            return best_shelf->alloc_item(w, h);
 
         // no shelf with enough space: add a new shelf
         if (w <= m_width && h <= m_height - top_y) {
             int shelf_index = int(m_shelves.size());
             m_shelves.emplace_back(std::make_unique<smol_shelf_t>(top_y, m_width, h, shelf_index));
-            return m_shelves.back()->alloc_entry(w, h);
+            return m_shelves.back()->alloc_item(w, h);
         }
 
         // out of space
         return nullptr;
     }
 
-    void free_entry(smol_atlas_entry_t* entry)
+    void free_item(smol_atlas_item_t* item)
     {
-        assert(entry->shelf_index >= 0 && entry->shelf_index < m_shelves.size());
-        m_shelves[entry->shelf_index]->free_entry(entry);
+        if (item == nullptr)
+            return;
+        assert(item->shelf_index >= 0 && item->shelf_index < m_shelves.size());
+        m_shelves[item->shelf_index]->free_item(item);
     }
 
     void clear()
@@ -258,9 +260,9 @@ struct smol_atlas_t
     int m_height;
 };
 
-smol_atlas_t* sma_create(int init_width, int init_height)
+smol_atlas_t* sma_create(int width, int height)
 {
-    return new smol_atlas_t(init_width, init_height);
+    return new smol_atlas_t(width, height);
 }
 
 void sma_destroy(smol_atlas_t* atlas)
@@ -278,14 +280,14 @@ int sma_get_height(const smol_atlas_t* atlas)
     return atlas->m_height;
 }
 
-smol_atlas_entry_t* sma_pack(smol_atlas_t* atlas, int width, int height)
+smol_atlas_item_t* sma_add(smol_atlas_t* atlas, int width, int height)
 {
     return atlas->pack(width, height);
 }
 
-void sma_entry_release(smol_atlas_t* atlas, smol_atlas_entry_t* entry)
+void sma_remove(smol_atlas_t* atlas, smol_atlas_item_t* item)
 {
-    atlas->free_entry(entry);
+    atlas->free_item(item);
 }
 
 void sma_clear(smol_atlas_t* atlas)
@@ -293,19 +295,19 @@ void sma_clear(smol_atlas_t* atlas)
     atlas->clear();
 }
 
-int sma_entry_get_x(const smol_atlas_entry_t* entry)
+int sma_item_x(const smol_atlas_item_t* item)
 {
-    return entry->x;
+    return item->x;
 }
-int sma_entry_get_y(const smol_atlas_entry_t* entry)
+int sma_item_y(const smol_atlas_item_t* item)
 {
-    return entry->y;
+    return item->y;
 }
-int sma_entry_get_width(const smol_atlas_entry_t* entry)
+int sma_item_width(const smol_atlas_item_t* item)
 {
-    return entry->width;
+    return item->width;
 }
-int sma_entry_get_height(const smol_atlas_entry_t* entry)
+int sma_item_height(const smol_atlas_item_t* item)
 {
-    return entry->height;
+    return item->height;
 }
