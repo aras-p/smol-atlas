@@ -77,3 +77,31 @@ Run rectpack on data file: 949 (+156960/-156011 30 runs): atlas 9216x8704 (80.2M
 Run awralloc on data file: 949 (+156960/-156011 30 runs): atlas 4096x3584 (14.7Mpix) used 3.5Mpix (24.1%), 816.0ms
 Run     smol on data file: 949 (+156960/-156011 30 runs): atlas 4096x4096 (16.8Mpix) used 3.5Mpix (21.1%), 31.0ms
 ```
+
+Manually growable smol_atlas too:
+```txt
+Run smol-atlas unit tests...
+Run   mapbox on synthetic: 1988 (+32000/-30012): atlas 4096x4096 (16.8Mpix) used 8.2Mpix (48.8%), 64.0ms
+Run  etagere on synthetic: 1988 (+32000/-30012): atlas 3584x3584 (12.8Mpix) used 8.2Mpix (64.2%), 8.0ms
+Run rectpack on synthetic: 1988 (+32000/-30012): atlas 6144x5632 (34.6Mpix) used 8.1Mpix (23.4%), 37.0ms
+Run awralloc on synthetic: 1988 (+32000/-30012): atlas 3584x3584 (12.8Mpix) used 8.3Mpix (64.3%), 161.0ms
+Run     smol on synthetic: 1988 (+32000/-30012): atlas 4096x4096 (16.8Mpix) used 8.2Mpix (48.8%), 28.0ms
+Test data 'test/thumbs-gold.txt': 252 frames; 4692 unique 15839 total entries
+Run   mapbox on data file: 2789 (+145600/-142811 30 runs): atlas 4608x4096 (18.9Mpix) used 7.5Mpix (39.8%), 315.0ms
+Run  etagere on data file: 2789 (+145600/-142811 30 runs): atlas 3584x3072 (11.0Mpix) used 7.5Mpix (68.2%), 31.0ms
+Run rectpack on data file: 2789 (+145600/-142811 30 runs): atlas 8704x8704 (75.8Mpix) used 7.5Mpix (9.9%), 267.0ms
+Run awralloc on data file: 2789 (+145600/-142811 30 runs): atlas 3584x3072 (11.0Mpix) used 7.5Mpix (68.2%), 583.0ms
+Run     smol on data file: 2789 (+145600/-142811 30 runs): atlas 3584x3072 (11.0Mpix) used 7.5Mpix (68.2%), 40.0ms
+Test data 'test/thumbs-wingit.txt': 198 frames; 2563 unique 14286 total entries
+Run   mapbox on data file: 334 (+77643/-77309 30 runs): atlas 5120x4608 (23.6Mpix) used 4.4Mpix (18.5%), 78.0ms
+Run  etagere on data file: 334 (+77643/-77309 30 runs): atlas 4096x4096 (16.8Mpix) used 4.4Mpix (26.0%), 19.0ms
+Run rectpack on data file: 334 (+77643/-77309 30 runs): atlas 9728x9728 (94.6Mpix) used 4.4Mpix (4.6%), 72.0ms
+Run awralloc on data file: 334 (+77643/-77309 30 runs): atlas 4608x4096 (18.9Mpix) used 4.4Mpix (23.1%), 144.0ms
+Run     smol on data file: 334 (+77643/-77309 30 runs): atlas 4096x3584 (14.7Mpix) used 4.4Mpix (29.8%), 26.0ms
+Test data 'test/thumbs-sprite-fright.txt': 27 frames; 5108 unique 7213 total entries
+Run   mapbox on data file: 949 (+156960/-156011 30 runs): atlas 4096x4096 (16.8Mpix) used 3.5Mpix (21.1%), 214.0ms
+Run  etagere on data file: 949 (+156960/-156011 30 runs): atlas 4096x3584 (14.7Mpix) used 3.5Mpix (24.1%), 22.0ms
+Run rectpack on data file: 949 (+156960/-156011 30 runs): atlas 9216x8704 (80.2Mpix) used 3.5Mpix (4.4%), 323.0ms
+Run awralloc on data file: 949 (+156960/-156011 30 runs): atlas 4096x3584 (14.7Mpix) used 3.5Mpix (24.1%), 809.0ms
+Run     smol on data file: 949 (+156960/-156011 30 runs): atlas 3584x3584 (12.8Mpix) used 3.5Mpix (27.6%), 34.0ms
+```
