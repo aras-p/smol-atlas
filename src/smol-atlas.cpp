@@ -34,12 +34,49 @@ struct smol_free_span_t
     smol_free_span_t* next;
 };
 
+template<typename T>
+struct smol_single_list_t
+{
+    smol_single_list_t(T* h) : m_head(h) { }
+    ~smol_single_list_t()
+    {
+        T* node = m_head;
+        while (node != nullptr) {
+            T* ptr = node;
+            node = node->next;
+            delete ptr;
+        }
+    }
+    
+    void insert(T* prev, T* node)
+    {
+        if (prev == nullptr) { // this is first node
+            node->next = m_head;
+            m_head = node;
+        }
+        else {
+            node->next = prev->next;
+            prev->next = node;
+        }
+    }
+
+    void remove(T* prev, T* node)
+    {
+        if (prev)
+            prev->next = node->next;
+        else
+            m_head = node->next;
+        delete node;
+    }
+
+    T* m_head = nullptr;
+};
+
 struct smol_shelf_t
 {
     explicit smol_shelf_t(int y, int width, int height, int index)
-        : m_y(y), m_height(height), m_index(index)
+        : m_y(y), m_height(height), m_index(index), m_free_spans(new smol_free_span_t(0, width))
     {
-        m_free_spans = new smol_free_span_t(0, width);
     }
     ~smol_shelf_t()
     {
@@ -47,19 +84,11 @@ struct smol_shelf_t
         for (smol_atlas_item_t* e : m_entries) {
             delete e;
         }
-
-        // release the spans list
-        smol_free_span_t* span = m_free_spans;
-        while (span) {
-            smol_free_span_t* ptr = span;
-            span = span->next;
-            delete ptr;
-        }
     }
 
     int calc_max_free_span() const
     {
-        smol_free_span_t* it = m_free_spans;
+        smol_free_span_t* it = m_free_spans.m_head;
         int width = 0;
         while (it != nullptr) {
             width = max_i(width, it->width);
@@ -74,7 +103,7 @@ struct smol_shelf_t
             return nullptr;
 
         // find a suitable free span
-        smol_free_span_t* it = m_free_spans;
+        smol_free_span_t* it = m_free_spans.m_head;
         smol_free_span_t* prev = nullptr;
         while (it != nullptr) {
             if (it->width >= w) {
@@ -97,7 +126,7 @@ struct smol_shelf_t
         }
         else {
             // whole span is taken, remove it
-            free_spans_remove(prev, it);
+            m_free_spans.remove(prev, it);
         }
 
         smol_atlas_item_t* e = new smol_atlas_item_t(x, m_y, w, h, m_index);
@@ -109,13 +138,13 @@ struct smol_shelf_t
     {
         // insert into free spans list at the right position
         smol_free_span_t* free_e = new smol_free_span_t(x, width);
-        smol_free_span_t* it = m_free_spans;
+        smol_free_span_t* it = m_free_spans.m_head;
         smol_free_span_t* prev = nullptr;
         bool added = false;
         while (it != nullptr) {
             if (free_e->x < it->x) {
                 // found right place, insert into the list
-                free_span_insert(prev, free_e);
+                m_free_spans.insert(prev, free_e);
                 added = true;
                 break;
             }
@@ -123,7 +152,7 @@ struct smol_shelf_t
             it = it->next;
         }
         if (!added)
-            free_span_insert(prev, free_e);
+            m_free_spans.insert(prev, free_e);
 
         merge_free_spans(prev, free_e);
     }
@@ -146,39 +175,18 @@ struct smol_shelf_t
         delete e;
     }
 
-    void free_span_insert(smol_free_span_t* prev, smol_free_span_t* span)
-    {
-        if (prev == nullptr) { // this is first node
-            span->next = m_free_spans;
-            m_free_spans = span;
-        }
-        else {
-            span->next = prev->next;
-            prev->next = span;
-        }
-    }
-
-    void free_spans_remove(smol_free_span_t* prev, smol_free_span_t* span)
-    {
-        if (prev)
-            prev->next = span->next;
-        else
-            m_free_spans = span->next;
-        delete span;
-    }
-
     void merge_free_spans(smol_free_span_t* prev, smol_free_span_t* span)
     {
         smol_free_span_t* next = span->next;
         if (next != nullptr && span->x + span->width == next->x) {
             // merge with next
             span->width += next->width;
-            free_spans_remove(span, next);
+            m_free_spans.remove(span, next);
         }
         if (prev != nullptr && prev->x + prev->width == span->x) {
             // merge with prev
             prev->width += span->width;
-            free_spans_remove(prev, span);
+            m_free_spans.remove(prev, span);
         }
     }
 
@@ -187,7 +195,7 @@ struct smol_shelf_t
     const int m_index;
 
     std::vector<smol_atlas_item_t*> m_entries;
-    smol_free_span_t* m_free_spans;
+    smol_single_list_t<smol_free_span_t> m_free_spans;
 };
 
 
