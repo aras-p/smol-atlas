@@ -86,15 +86,15 @@ struct smol_shelf_t
         }
     }
 
-    int calc_max_free_span() const
+    bool has_space_for(int width) const
     {
         smol_free_span_t* it = m_free_spans.m_head;
-        int width = 0;
         while (it != nullptr) {
-            width = max_i(width, it->width);
+            if (width <= it->width)
+                return true;
             it = it->next;
         }
-        return width;
+        return false;
     }
 
     smol_atlas_item_t* alloc_item(int w, int h)
@@ -222,26 +222,29 @@ struct smol_atlas_t
         for (auto& shelf : m_shelves) {
             const int shelf_h = shelf->m_height;
             top_y = max_i(top_y, shelf->m_y + shelf_h);
-
+            
             if (shelf_h < h)
                 continue; // too short
-
-            if (shelf->calc_max_free_span() < w)
-                continue; // does not have enough space
-
-            if (shelf_h == h) // exact height fit, use it
-                return shelf->alloc_item(w, h);
+            
+            if (shelf_h == h) { // exact height fit, try to use it
+                smol_atlas_item_t* res = shelf->alloc_item(w, h);
+                if (res != nullptr)
+                    return res;
+            }
 
             // otherwise the shelf is too tall, track best one
             int score = shelf_h - h;
-            if (score < best_score) {
+            if (score < best_score && shelf->has_space_for(w)) {
                 best_score = score;
                 best_shelf = shelf;
             }
         }
 
-        if (best_shelf)
-            return best_shelf->alloc_item(w, h);
+        if (best_shelf) {
+            smol_atlas_item_t* res = best_shelf->alloc_item(w, h);
+            if (res != nullptr)
+                return res;
+        }
 
         // no shelf with enough space: add a new shelf
         if (w <= m_width && h <= m_height - top_y) {
