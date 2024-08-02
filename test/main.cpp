@@ -89,7 +89,7 @@ static void load_test_data(const char* filename)
     if (frame_start_idx >= 0)
         s_test_frames.push_back(std::make_pair(frame_start_idx, (int)s_test_entries.size() - frame_start_idx));
     fclose(f);
-    printf("Test data '%s': %i frames; %i unique %i total entries\n", filename, int(s_test_frames.size()), int(s_unique_entries.size()), int(s_test_entries.size()));
+    printf("'%s': %i frames; %i unique %i total items\n", filename, int(s_test_frames.size()), int(s_unique_entries.size()), int(s_test_entries.size()));
 }
 
 
@@ -152,7 +152,7 @@ size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename
 }
 
 template<typename T>
-void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>& entries, int e_id, int e_width, int e_height)
+int grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>& entries, int e_id, int e_width, int e_height)
 {
     struct EntryInfo {
         int id;
@@ -178,6 +178,7 @@ void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>&
 
     bool failed = false;
     typename T::Entry ret_res = {};
+    int iterations = 1;
     while(true) {
         entries.clear();
         
@@ -202,14 +203,17 @@ void grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>&
             entries.insert({i.id, res});
         }
         if (!failed)
-            return;
+            return iterations;
         
         // Failed packing into current atlas size, increase it.
+        ++iterations;
         if (new_width <= new_height)
             new_width += ATLAS_GROW_BY;
         else
             new_height += ATLAS_GROW_BY;
     }
+    
+    return iterations;
 }
 
 template<typename T>
@@ -227,6 +231,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
     int insertions = 0;
     int removals = 0;
     int timestamp = 0;
+    int repacks = 0;
     for (int run = 0; run < TEST_RUN_COUNT; ++run) {
         for (int frame_idx = 0; frame_idx < s_test_frames.size(); ++frame_idx) {
             size_t frame_start_idx = s_test_frames[frame_idx].first;
@@ -247,7 +252,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
                         live_entries.insert({test_entry.id, res});
                     }
                     else {
-                        grow_atlas_and_repack(atlas, live_entries, test_entry.id, test_entry.width, test_entry.height);
+                        repacks += grow_atlas_and_repack(atlas, live_entries, test_entry.id, test_entry.width, test_entry.height);
                     }
                 }
                 id_to_timestamp[test_entry.id] = timestamp;
@@ -278,8 +283,8 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
     int width = atlas.width();
     int height = atlas.height();
     size_t entry_total = count_total_entries_size(atlas, live_entries);
-    printf("%i (+%i/-%i %i runs): %ix%i (%.1fMpix) used %.1f%%, %.1fms\n",
-           (int)live_entries.size(), insertions, removals, TEST_RUN_COUNT,
+    printf("%i (+%i/-%i %i runs, %i repacks): %ix%i (%.1fMpix) used %.1f%%, %.1fms\n",
+           (int)live_entries.size(), insertions, removals, TEST_RUN_COUNT, repacks,
            width, height, width * height / 1.0e6,
            entry_total * 100.0 / (width * height),
            dur * 1000.0);
@@ -306,6 +311,7 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     int removals = 0;
     int id_counter = 1;
     std::unordered_map<int, typename T::Entry> entries;
+    int repacks = 0;
 
     // insert a bunch of initial entries
     for (int i = 0; i < INIT_ENTRY_COUNT; ++i) {
@@ -319,7 +325,7 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
             entries.insert({id, res});
         }
         else {
-            grow_atlas_and_repack(atlas, entries, id, w, h);
+            repacks += grow_atlas_and_repack(atlas, entries, id, w, h);
         }
     }
     
@@ -351,7 +357,7 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
                 entries.insert({id, res});
             }
             else {
-                grow_atlas_and_repack(atlas, entries, id, w, h);
+                repacks += grow_atlas_and_repack(atlas, entries, id, w, h);
             }
         }
     }
@@ -362,8 +368,8 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     int width = atlas.width();
     int height = atlas.height();
     size_t entry_total = count_total_entries_size(atlas, entries);
-    printf("%i (+%i/-%i): %ix%i (%.1fMpix) used %.1f%%, %.1fms\n",
-           (int)entries.size(), insertions, removals,
+    printf("%i (+%i/-%i %i repacks): %ix%i (%.1fMpix) used %.1f%%, %.1fms\n",
+           (int)entries.size(), insertions, removals, repacks,
            width, height, width * height / 1.0e6,
            entry_total * 100.0 / (width * height),
            dur * 1000.0);
