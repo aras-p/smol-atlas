@@ -14,7 +14,7 @@ static inline int max_i(int a, int b)
 struct smol_atlas_item_t
 {
     explicit smol_atlas_item_t(int x_, int y_, int w_, int h_, int shelf_)
-    : x(x_), y(y_), width(w_), height(h_), shelf_index(shelf_)
+    : x(x_), y(y_), width(w_), height(h_), item_index(-1), shelf_index(shelf_)
     {
     }
 
@@ -22,6 +22,7 @@ struct smol_atlas_item_t
     int y;
     int width;
     int height;
+    int item_index;
     int shelf_index;
 };
 
@@ -130,6 +131,7 @@ struct smol_shelf_t
         }
 
         smol_atlas_item_t* e = new smol_atlas_item_t(x, m_y, w, h, m_index);
+        e->item_index = (int)m_entries.size();
         m_entries.emplace_back(e);
         return e;
     }
@@ -165,11 +167,11 @@ struct smol_shelf_t
         add_free_span(e->x, e->width);
 
         // remove the actual item
-        auto it = std::find(m_entries.begin(), m_entries.end(), e);
-        assert(it != m_entries.end());
-        size_t index = std::distance(m_entries.begin(), it);
+        assert(e->item_index == std::distance(m_entries.begin(), std::find(m_entries.begin(), m_entries.end(), e)));
+        int index = e->item_index;
         if (index < m_entries.size() - 1) {
             m_entries[index] = m_entries.back();
+            m_entries[index]->item_index = index;
         }
         m_entries.pop_back();
         delete e;
