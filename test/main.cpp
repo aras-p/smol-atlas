@@ -11,6 +11,11 @@
 #include <unordered_map>
 #include <vector>
 
+#define TEST_ON_MAPBOX 1
+#define TEST_ON_ETAGERE HAVE_ETAGERE
+#define TEST_ON_STB_RECTPACK 1
+#define TEST_ON_AW_RECTALLOCATOR 1
+
 static constexpr int ATLAS_SIZE_INIT = 1024;
 static constexpr int ATLAS_GROW_BY = 512;
 
@@ -282,7 +287,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
     dump_to_svg(atlas, live_entries, dumpname);
 }
 
-static int rand_size() { return ((pcg32() & 127) + 1); } // up to 128, quantized at increments of 4
+static int rand_size() { return ((pcg32() & 127) + 1); } // up to 128
 
 template<typename T>
 static void test_atlas_synthetic(const char* name, const char* dumpname)
@@ -365,6 +370,8 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
 
     dump_to_svg(atlas, entries, dumpname);
 }
+
+// -------------------------------------------------------------------
 
 #include "../external/mapbox-shelf-pack-cpp/include/mapbox/shelf-pack.hpp"
 
@@ -532,7 +539,6 @@ struct test_on_aw_rectallocator
     int m_width, m_height;
 };
 
-
 #if HAVE_ETAGERE
 
 #include "../external/etagere/etagere.h"
@@ -640,42 +646,66 @@ int main()
 {
     run_smol_atlas_tests();
     
+    #if TEST_ON_MAPBOX
     test_atlas_synthetic<test_on_mapbox>("mapbox", "out_syn_mapbox.svg");
-    #if HAVE_ETAGERE
+    #endif
+    #if TEST_ON_ETAGERE
     test_atlas_synthetic<test_on_etagere>("etagere", "out_syn_etagere.svg");
     #endif
+    #if TEST_ON_STB_RECTPACK
     test_atlas_synthetic<test_on_stb_rectpack>("rectpack", "out_syn_rectpack.svg");
+    #endif
+    #if TEST_ON_AW_RECTALLOCATOR
     test_atlas_synthetic<test_on_aw_rectallocator>("awralloc", "out_syn_awralloc.svg");
+    #endif
     test_atlas_synthetic<test_on_smol>("smol", "out_syn_smol.svg");
 
     load_test_data("test/thumbs-gold.txt");
     const int free_frames_gold = 30;
+    #if TEST_ON_MAPBOX
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_gold_mapbox.svg", free_frames_gold);
-    #if HAVE_ETAGERE
+    #endif
+    #if TEST_ON_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_gold_etagere.svg", free_frames_gold);
     #endif
+    #if TEST_ON_STB_RECTPACK
     test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_gold);
+    #endif
+    #if TEST_ON_AW_RECTALLOCATOR
     test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_gold_awralloc.svg", free_frames_gold);
+    #endif
     test_atlas_on_data<test_on_smol>("smol", "out_data_gold_smol.svg", free_frames_gold);
 
     load_test_data("test/thumbs-wingit.txt");
     const int free_frames_wingit = 40;
+    #if TEST_ON_MAPBOX
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_wingit_mapbox.svg", free_frames_wingit);
-    #if HAVE_ETAGERE
+    #endif
+    #if TEST_ON_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_wingit_etagere.svg", free_frames_wingit);
     #endif
+    #if TEST_ON_STB_RECTPACK
     test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_wingit_rectpack.svg", free_frames_wingit);
+    #endif
+    #if TEST_ON_AW_RECTALLOCATOR
     test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_wingit_awralloc.svg", free_frames_wingit);
+    #endif
     test_atlas_on_data<test_on_smol>("smol", "out_data_wingit_smol.svg", free_frames_wingit);
 
     load_test_data("test/thumbs-sprite-fright.txt");
     const int free_frames_sprite = 5;
+    #if TEST_ON_MAPBOX
     test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_spritefright_mapbox.svg", free_frames_sprite);
-    #if HAVE_ETAGERE
+    #endif
+    #if TEST_ON_ETAGERE
     test_atlas_on_data<test_on_etagere>("etagere", "out_data_spritefright_etagere.svg", free_frames_sprite);
     #endif
+    #if TEST_ON_STB_RECTPACK
     test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_spritefright_rectpack.svg", free_frames_sprite);
+    #endif
+    #if TEST_ON_AW_RECTALLOCATOR
     test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_spritefright_awralloc.svg", free_frames_sprite);
+    #endif
     test_atlas_on_data<test_on_smol>("smol", "out_data_spritefright_smol.svg", free_frames_sprite);
 
     return 0;
