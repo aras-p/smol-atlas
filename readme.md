@@ -131,3 +131,14 @@ Build the dynamic libraries locally by:
     data structure to merge removed areas. I could not get it to build for C consumption to test here though. But then, I don't
     really know how to Rust things...
 - [Mapbox shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) is a C++ port of `shelf-pack` Javascript library from Mapbox.
+
+### Possible future plans
+
+Not sure if any of this will happen, but here's a list of things that would be interesting to try:
+- Usage: check/see whether it *actually* makes sense to put something like this into Blender's video sequence editor for thumbnails :)
+- Write a blog post about this mayhaps?
+- API: change to return "handles" instead of raw item pointers. They would be both smaller and safer.
+- Perf: implement internals without many small individual allocations.
+- API: provide ways of passing your own memory allocation functions.
+- Algo: play around with different ways of allocating items. E.g. instead of "first fit" within the shelf, maybe a "best fit" or
+  "worst fit" would work better? Or maybe a full fledged "allocator" of 1D space within the shelf?
