@@ -80,11 +80,11 @@ The test then is this:
 
 | Library | GCs |Repacks/grows | Mac time, ms | Win time, ms | Look |
 |---------|----:|---------:|-------------:|-------------:|------|
-| **smol-atlas**                                                                                                | 800 | **127** | 20 | 54 | <img src="/img/gold_smol.svg" width="100" /> |
-| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | 876 | 185 | **18** | **36** | <img src="/img/gold_etagere.svg" width="100" /> |
-| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 1027 | 426 | 58 | 158 | <img src="/img/gold_mapbox.svg" width="100" /> |
-| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | 576 | 578 | 102 | 313 | <img src="/img/gold_rectpack.svg" width="100" /> |
-| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 912 | 248 | 313 | 1301 | <img src="/img/gold_awralloc.svg" width="100" /> |
+| **smol-atlas**                                                                                                | 800 | **127** | 20 | 32 | <img src="/img/gold_smol.svg" width="100" /> |
+| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | 876 | 185 | **18** | **23** | <img src="/img/gold_etagere.svg" width="100" /> |
+| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 1027 | 426 | 58 | 80 | <img src="/img/gold_mapbox.svg" width="100" /> |
+| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | **576** | 578 | 102 | 102 | <img src="/img/gold_rectpack.svg" width="100" /> |
+| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 912 | 248 | 313 | 406 | <img src="/img/gold_awralloc.svg" width="100" /> |
 
 My strategy for atlas resizing is the same for all the cases tested.
 - Initial atlas size is 1024x1024.
