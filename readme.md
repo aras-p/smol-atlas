@@ -69,25 +69,26 @@ that would be needed at any point.
 
 The test then is this:
 - Try to "place" the needed thumbnails into the texture atlas,
-- Remove thumbnails from the atlas, if they have not been used for a number of frames.
+- When no longer can fit new thumbnails, remove "old" ones from the atlas.
+- If still can not fit new thumbnails, try to enlarge the atlas.
 - As is typical within context of a video timeline, most of thumbnails have the same height, but many have varying width due
   to cropping caused by strip length.
 
-250 frames of this data, ran 30 times in a loop, featuring 4700 unique thumbnails, produces 146 thousand item additions and 
-143 thousand item removals from the texture atlas. All of the tested libraries produce an atlas of 3072x3072 pixels.
+250 frames of this data, ran 30 times in a loop, featuring 4700 unique thumbnails, produces 160 thousand item additions and 
+150 thousand item removals from the texture atlas. All of the tested libraries produce an atlas of 1536x1536 pixels.
 "Win" time is Ryzen 5950X (VS2022), "Mac" time is M1 Max (Xcode15).
 
-| Library | Repacks/grows | Mac time, ms | Win time, ms | Look |
-|---------|--------------:|-------------:|-------------:|------|
-| **smol-atlas**                                                                                                | 99 | 38 | 54 | <img src="/img/gold_smol.svg" width="100" /> |
-| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | 54 | **32** | **36** | <img src="/img/gold_etagere.svg" width="100" /> |
-| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 188 | 105 | 158 | <img src="/img/gold_mapbox.svg" width="100" /> |
-| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | 223 | 333 | 313 | <img src="/img/gold_rectpack.svg" width="100" /> |
-| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 60 | 1140 | 1301 | <img src="/img/gold_awralloc.svg" width="100" /> |
+| Library | GCs |Repacks/grows | Mac time, ms | Win time, ms | Look |
+|---------|----:|---------:|-------------:|-------------:|------|
+| **smol-atlas**                                                                                                | 800 | **127** | 20 | 54 | <img src="/img/gold_smol.svg" width="100" /> |
+| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | 876 | 185 | **18** | **36** | <img src="/img/gold_etagere.svg" width="100" /> |
+| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 1027 | 426 | 58 | 158 | <img src="/img/gold_mapbox.svg" width="100" /> |
+| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | 576 | 578 | 102 | 313 | <img src="/img/gold_rectpack.svg" width="100" /> |
+| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 912 | 248 | 313 | 1301 | <img src="/img/gold_awralloc.svg" width="100" /> |
 
 My strategy for atlas resizing is the same for all the cases tested.
 - Initial atlas size is 1024x1024.
-- When an item no longer fits into atlas:
+- When an item no longer fits into atlas, even after removing old items:
   - First just try to repack all the items into atlas *of the same size*.
     - This particularly makes cases that *do not actually support item removal* (like `stb_rect_pack`) "actually work",
       since it gives them a chance to "clean up" all the would-be-unused space.

@@ -12,12 +12,15 @@
 #include <vector>
 
 #define TEST_ON_MAPBOX 1
-#define TEST_ON_ETAGERE HAVE_ETAGERE
+#define TEST_ON_ETAGERE (HAVE_ETAGERE && 1)
 #define TEST_ON_STB_RECTPACK 1
 #define TEST_ON_AW_RECTALLOCATOR 1
 
 static constexpr int ATLAS_SIZE_INIT = 1024;
 static constexpr int ATLAS_GROW_BY = 512;
+
+static constexpr int TEST_DATA_RUN_COUNT = 30;
+static constexpr int TEST_DATA_GC_AFTER_FRAMES = 2;
 
 // -------------------------------------------------------------------
 
@@ -89,7 +92,9 @@ static void load_test_data(const char* filename)
     if (frame_start_idx >= 0)
         s_test_frames.push_back(std::make_pair(frame_start_idx, (int)s_test_entries.size() - frame_start_idx));
     fclose(f);
-    printf("'%s': %i frames; %i unique %i total items\n", filename, int(s_test_frames.size()), int(s_unique_entries.size()), int(s_test_entries.size()));
+    printf("'%s': %i frames; %i unique %i total items, %i runs\n",
+        filename, int(s_test_frames.size()), int(s_unique_entries.size()), int(s_test_entries.size()), TEST_DATA_RUN_COUNT);
+    printf("Library        EndItems Adds   Rems   GCs  Repacks AtlasSize MPix Used%% TimeMS\n");
 }
 
 
@@ -97,24 +102,24 @@ static void load_test_data(const char* filename)
 
 static void dump_svg_header(FILE* f, int width, int height)
 {
-    fprintf(f, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 %i %i\">\n", width + 20, height + 20);
+    fprintf(f, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 %i %i\">\n", width + 20, height + 100);
 }
-static void dump_svg_footer(FILE* f, int width, int height, int entries)
+static void dump_svg_footer(FILE* f, const char* name, int width, int height, int entries)
 {
-    fprintf(f, "<rect x=\"10\" y=\"10\" width=\"%i\" height=\"%i\" fill=\"none\" stroke=\"black\" stroke-width=\"5\" />\n", width, height);
-    fprintf(f, "<text x=\"10\" y=\"300\" font-family=\"Arial\" font-size=\"280\" fill=\"black\" stroke=\"white\" stroke-width=\"5\">%ix%i %i</text>\n", width, height, entries);
+    fprintf(f, "<rect x=\"10\" y=\"90\" width=\"%i\" height=\"%i\" fill=\"none\" stroke=\"black\" stroke-width=\"5\" />\n", width, height);
+    fprintf(f, "<text x=\"10\" y=\"80\" font-family=\"Arial\" font-size=\"80\" fill=\"black\">%s %ix%i %i items</text>\n", name, width, height, entries);
     fprintf(f, "</svg>");
 }
 static void dump_svg_rect(FILE* f, int x, int y, int width, int height, int r, int g, int b)
 {
     fprintf(f, "<rect x=\"%i\" y=\"%i\" width=\"%i\" height=\"%i\" fill=\"rgb(%i,%i,%i)\" />\n",
-        x + 10, y + 10, width, height, r, g, b);
+        x + 10, y + 90, width, height, r, g, b);
 }
 
 // -------------------------------------------------------------------
 
 template<typename T>
-static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entry>& entries, const char* dumpname)
+static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entry>& entries, const char* dumpname, const char* name)
 {
     FILE* f = fopen(dumpname, "wb");
     if (!f)
@@ -123,7 +128,7 @@ static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entr
     int width = atlas.width();
     int height = atlas.height();
 
-    dump_svg_header(f, std::max(width, 4096), std::max(height, 4096));
+    dump_svg_header(f, std::max(width, 1536), std::max(height, 1536));
     for (auto it : entries) {
         int key = it.first;
         typename T::Entry& e = it.second;
@@ -134,7 +139,7 @@ static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entr
         dump_svg_rect(f, x, y, w, h, (key * 12841) & 255, (key * 24571) & 255, (key * 36947) & 255);
     }
     atlas.dump_svg_extra_info(f);
-    dump_svg_footer(f, width, height, (int)entries.size());
+    dump_svg_footer(f, name, width, height, (int)entries.size());
     fclose(f);
 }
 
@@ -217,22 +222,21 @@ int grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>& 
 }
 
 template<typename T>
-static void test_atlas_on_data(const char* name, const char* dumpname, int free_after_frames)
+static void test_atlas_on_data(const char* name, const char* dumpname)
 {
-    printf("Run %8s: ", name);
+    printf("%14s ", name);
     clock_t t0 = clock();
     T atlas(ATLAS_SIZE_INIT, ATLAS_SIZE_INIT);
 
-    std::vector<int> id_to_timestamp(s_unique_entries.size(), -free_after_frames);
+    std::vector<int> id_to_timestamp(s_unique_entries.size(), -TEST_DATA_GC_AFTER_FRAMES);
     std::unordered_map<int, typename T::Entry> live_entries;
     
-    constexpr int TEST_RUN_COUNT = 30;
-
     int insertions = 0;
     int removals = 0;
     int timestamp = 0;
     int repacks = 0;
-    for (int run = 0; run < TEST_RUN_COUNT; ++run) {
+    int gcs = 0;
+    for (int run = 0; run < TEST_DATA_RUN_COUNT; ++run) {
         for (int frame_idx = 0; frame_idx < s_test_frames.size(); ++frame_idx) {
             size_t frame_start_idx = s_test_frames[frame_idx].first;
             size_t frame_size = s_test_frames[frame_idx].second;
@@ -240,39 +244,50 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
             // process frame data for which entries are visible
             for (size_t test_idx = frame_start_idx; test_idx < frame_start_idx + frame_size; ++test_idx) {
                 const TestEntry& test_entry = s_unique_entries[s_test_entries[test_idx]];
-                typename T::Entry res;
+                id_to_timestamp[test_entry.id] = timestamp;
+
                 auto it = live_entries.find(test_entry.id);
-                if (it != live_entries.end()) {
-                    res = it->second;
+                if (it != live_entries.end())
+                    continue; // entry already present in atlas right now
+
+                // try to pack entry
+                ++insertions;
+                typename T::Entry res = atlas.pack(test_entry.width, test_entry.height);
+                if (atlas.entry_valid(res)) {
+                    live_entries.insert({test_entry.id, res});
+                    continue;
                 }
-                else {
-                    res = atlas.pack(test_entry.width, test_entry.height);
-                    ++insertions;
-                    if (atlas.entry_valid(res)) {
-                        live_entries.insert({test_entry.id, res});
+                
+                // could not pack: remove old/stale entries (that have not been
+                // used for a number of frames)
+                ++gcs;
+                for (auto it = live_entries.begin(); it != live_entries.end(); ) {
+                    assert(atlas.entry_valid(it->second));
+                    int key = it->first;
+                    int e_ts = id_to_timestamp[key];
+                    if (timestamp - e_ts > TEST_DATA_GC_AFTER_FRAMES) {
+                        atlas.release(it->second);
+                        ++removals;
+                        it = live_entries.erase(it);
+                        id_to_timestamp[key] = -TEST_DATA_GC_AFTER_FRAMES;
                     }
                     else {
-                        repacks += grow_atlas_and_repack(atlas, live_entries, test_entry.id, test_entry.width, test_entry.height);
+                        ++it;
                     }
                 }
-                id_to_timestamp[test_entry.id] = timestamp;
+                
+                // now try to pack again
+                ++insertions;
+                res = atlas.pack(test_entry.width, test_entry.height);
+                if (atlas.entry_valid(res)) {
+                    live_entries.insert({test_entry.id, res});
+                    continue;
+                }
+
+                // still could not fit it, have to repack and/or grow the atlas
+                repacks += grow_atlas_and_repack(atlas, live_entries, test_entry.id, test_entry.width, test_entry.height);
             }
 
-            // free entries that were not used for a number of frames
-            for (auto it = live_entries.begin(); it != live_entries.end(); ) {
-                assert(atlas.entry_valid(it->second));
-                int key = it->first;
-                int frames_ago = timestamp - id_to_timestamp[key];
-                if (frames_ago > free_after_frames) {
-                    atlas.release(it->second);
-                    ++removals;
-                    it = live_entries.erase(it);
-                    id_to_timestamp[key] = -free_after_frames;
-                }
-                else {
-                    ++it;
-                }
-            }
             ++timestamp;
         }
     }
@@ -283,13 +298,13 @@ static void test_atlas_on_data(const char* name, const char* dumpname, int free_
     int width = atlas.width();
     int height = atlas.height();
     size_t entry_total = count_total_entries_size(atlas, live_entries);
-    printf("%i (+%i/-%i %i runs, %i repacks): %ix%i (%.1fMpix) used %.1f%%, %.1fms\n",
-           (int)live_entries.size(), insertions, removals, TEST_RUN_COUNT, repacks,
+    printf("%8i %6i %6i %4i %7i %ix%i %4.1f %5.1f %6.1f\n",
+           (int)live_entries.size(), insertions, removals, gcs, repacks,
            width, height, width * height / 1.0e6,
            entry_total * 100.0 / (width * height),
            dur * 1000.0);
     
-    dump_to_svg(atlas, live_entries, dumpname);
+    dump_to_svg(atlas, live_entries, dumpname, name);
 }
 
 static int rand_size() { return ((pcg32() & 127) + 1); } // up to 128
@@ -297,7 +312,7 @@ static int rand_size() { return ((pcg32() & 127) + 1); } // up to 128
 template<typename T>
 static void test_atlas_synthetic(const char* name, const char* dumpname)
 {
-    printf("Run %8s on synthetic: ", name);
+    printf("%14s ", name);
     clock_t t0 = clock();
     T atlas(ATLAS_SIZE_INIT, ATLAS_SIZE_INIT);
     
@@ -368,13 +383,14 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     int width = atlas.width();
     int height = atlas.height();
     size_t entry_total = count_total_entries_size(atlas, entries);
-    printf("%i (+%i/-%i %i repacks): %ix%i (%.1fMpix) used %.1f%%, %.1fms\n",
-           (int)entries.size(), insertions, removals, repacks,
+    printf("%8i %6i %6i %4i %7i %ix%i %4.1f %5.1f %6.1f\n",
+           (int)entries.size(), insertions, removals, 0, repacks,
            width, height, width * height / 1.0e6,
            entry_total * 100.0 / (width * height),
            dur * 1000.0);
 
-    dump_to_svg(atlas, entries, dumpname);
+
+    dump_to_svg(atlas, entries, dumpname, name);
 }
 
 // -------------------------------------------------------------------
@@ -648,71 +664,53 @@ struct test_on_smol
 
 int run_smol_atlas_tests();
 
+static void test_libs_on_synthetic()
+{
+    printf("Running synthetic tests...\n");
+    printf("Library        EndItems Adds   Rems   GCs  Repacks AtlasSize MPix Used%% TimeMS\n");
+    
+    test_atlas_synthetic<test_on_smol>("smol-atlas", "out_syn_smol.svg");
+    #if TEST_ON_ETAGERE
+    test_atlas_synthetic<test_on_etagere>("etagere", "out_syn_etagere.svg");
+    #endif
+    #if TEST_ON_MAPBOX
+    test_atlas_synthetic<test_on_mapbox>("shelf-pack-cpp", "out_syn_mapbox.svg");
+    #endif
+    #if TEST_ON_STB_RECTPACK
+    test_atlas_synthetic<test_on_stb_rectpack>("stb_rect_pack", "out_syn_rectpack.svg");
+    #endif
+    #if TEST_ON_AW_RECTALLOCATOR
+    test_atlas_synthetic<test_on_aw_rectallocator>("RectAllocator", "out_syn_awralloc.svg");
+    #endif
+}
+
+static void test_libs_on_data(const char* data_name)
+{
+    load_test_data((std::string("test/thumbs-") + data_name + ".txt").c_str());
+    test_atlas_on_data<test_on_smol>("smol-atlas", (std::string("out_data_") + data_name + "_smol.svg").c_str());
+    #if TEST_ON_ETAGERE
+    test_atlas_on_data<test_on_etagere>("etagere", (std::string("out_data_") + data_name + "_etagere.svg").c_str());
+    #endif
+    #if TEST_ON_MAPBOX
+    test_atlas_on_data<test_on_mapbox>("shelf-pack-cpp", (std::string("out_data_") + data_name + "_mapbox.svg").c_str());
+    #endif
+    #if TEST_ON_STB_RECTPACK
+    test_atlas_on_data<test_on_stb_rectpack>("stb_rect_pack", (std::string("out_data_") + data_name + "_rectpack.svg").c_str());
+    #endif
+    #if TEST_ON_AW_RECTALLOCATOR
+    test_atlas_on_data<test_on_aw_rectallocator>("RectAllocator", (std::string("out_data_") + data_name + "_awralloc.svg").c_str());
+    #endif
+}
+
 int main()
 {
     run_smol_atlas_tests();
     
-    #if TEST_ON_MAPBOX
-    test_atlas_synthetic<test_on_mapbox>("mapbox", "out_syn_mapbox.svg");
-    #endif
-    #if TEST_ON_ETAGERE
-    test_atlas_synthetic<test_on_etagere>("etagere", "out_syn_etagere.svg");
-    #endif
-    #if TEST_ON_STB_RECTPACK
-    test_atlas_synthetic<test_on_stb_rectpack>("rectpack", "out_syn_rectpack.svg");
-    #endif
-    #if TEST_ON_AW_RECTALLOCATOR
-    test_atlas_synthetic<test_on_aw_rectallocator>("awralloc", "out_syn_awralloc.svg");
-    #endif
-    test_atlas_synthetic<test_on_smol>("smol", "out_syn_smol.svg");
-
-    load_test_data("test/thumbs-gold.txt");
-    const int free_frames_gold = 30;
-    #if TEST_ON_MAPBOX
-    test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_gold_mapbox.svg", free_frames_gold);
-    #endif
-    #if TEST_ON_ETAGERE
-    test_atlas_on_data<test_on_etagere>("etagere", "out_data_gold_etagere.svg", free_frames_gold);
-    #endif
-    #if TEST_ON_STB_RECTPACK
-    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_gold_rectpack.svg", free_frames_gold);
-    #endif
-    #if TEST_ON_AW_RECTALLOCATOR
-    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_gold_awralloc.svg", free_frames_gold);
-    #endif
-    test_atlas_on_data<test_on_smol>("smol", "out_data_gold_smol.svg", free_frames_gold);
-
-    load_test_data("test/thumbs-wingit.txt");
-    const int free_frames_wingit = 40;
-    #if TEST_ON_MAPBOX
-    test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_wingit_mapbox.svg", free_frames_wingit);
-    #endif
-    #if TEST_ON_ETAGERE
-    test_atlas_on_data<test_on_etagere>("etagere", "out_data_wingit_etagere.svg", free_frames_wingit);
-    #endif
-    #if TEST_ON_STB_RECTPACK
-    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_wingit_rectpack.svg", free_frames_wingit);
-    #endif
-    #if TEST_ON_AW_RECTALLOCATOR
-    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_wingit_awralloc.svg", free_frames_wingit);
-    #endif
-    test_atlas_on_data<test_on_smol>("smol", "out_data_wingit_smol.svg", free_frames_wingit);
-
-    load_test_data("test/thumbs-sprite-fright.txt");
-    const int free_frames_sprite = 5;
-    #if TEST_ON_MAPBOX
-    test_atlas_on_data<test_on_mapbox>("mapbox", "out_data_spritefright_mapbox.svg", free_frames_sprite);
-    #endif
-    #if TEST_ON_ETAGERE
-    test_atlas_on_data<test_on_etagere>("etagere", "out_data_spritefright_etagere.svg", free_frames_sprite);
-    #endif
-    #if TEST_ON_STB_RECTPACK
-    test_atlas_on_data<test_on_stb_rectpack>("rectpack", "out_data_spritefright_rectpack.svg", free_frames_sprite);
-    #endif
-    #if TEST_ON_AW_RECTALLOCATOR
-    test_atlas_on_data<test_on_aw_rectallocator>("awralloc", "out_data_spritefright_awralloc.svg", free_frames_sprite);
-    #endif
-    test_atlas_on_data<test_on_smol>("smol", "out_data_spritefright_smol.svg", free_frames_sprite);
+    test_libs_on_synthetic();
+        
+    test_libs_on_data("gold");
+    test_libs_on_data("wingit");
+    test_libs_on_data("sprite-fright");
 
     return 0;
 }
