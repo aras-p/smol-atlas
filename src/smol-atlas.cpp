@@ -363,9 +363,11 @@ void sma_item_remove(smol_atlas_t* atlas, smol_atlas_item_t* item)
     atlas->free_item(item);
 }
 
-void sma_atlas_clear(smol_atlas_t* atlas)
+void sma_atlas_clear(smol_atlas_t* atlas, int new_width, int new_height)
 {
     atlas->clear();
+    if (new_width > 0) atlas->m_width = new_width;
+    if (new_height > 0) atlas->m_height = new_height;
 }
 
 int sma_item_x(const smol_atlas_item_t* item)

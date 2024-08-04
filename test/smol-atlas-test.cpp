@@ -236,6 +236,7 @@ static void test_clear()
     smol_atlas_item_t* e1 = sma_item_add(atlas, 10, 10);
     CHECK_ITEM(e1, 0, 0, 10, 10);
 
+    // clear atlas, keeping same size
     sma_atlas_clear(atlas);
 
     smol_atlas_item_t* e2 = sma_item_add(atlas, 10, 5);
@@ -244,6 +245,22 @@ static void test_clear()
     CHECK_ITEM(e2, 0, 0, 10, 5);
     CHECK_ITEM(e3, 0, 5, 5, 5);
     CHECK_ITEM(e4, 5, 5, 5, 5);
+    // now atlas is full
+    smol_atlas_item_t* e5 = sma_item_add(atlas, 1, 1);
+    CHECK(e5 == nullptr);
+
+    // clear atlas, increasing size
+    sma_atlas_clear(atlas, 10, 11); // extra pixel row
+
+    e2 = sma_item_add(atlas, 10, 5);
+    e3 = sma_item_add(atlas, 5, 5);
+    e4 = sma_item_add(atlas, 5, 5);
+    CHECK_ITEM(e2, 0, 0, 10, 5);
+    CHECK_ITEM(e3, 0, 5, 5, 5);
+    CHECK_ITEM(e4, 5, 5, 5, 5);
+    // e5 now fits
+    e5 = sma_item_add(atlas, 1, 1);
+    CHECK_ITEM(e5, 0, 10, 1, 1);
 
     sma_atlas_destroy(atlas);
 }

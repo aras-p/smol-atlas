@@ -650,8 +650,7 @@ struct test_on_smol
     }
     void reinitialize(int width, int height)
     {
-        sma_atlas_destroy(m_atlas);
-        m_atlas = sma_atlas_create(width, height);
+        sma_atlas_clear(m_atlas, width, height);
     }
     
     Entry pack(int width, int height) { return sma_item_add(m_atlas, width, height); }

@@ -52,7 +52,9 @@ smol_atlas_item_t* sma_item_add(smol_atlas_t* atlas, int width, int height);
 void sma_item_remove(smol_atlas_t* atlas, smol_atlas_item_t* item);
 
 /// Clear the atlas. This invalidates any previously returned item pointers.
-void sma_atlas_clear(smol_atlas_t* atlas);
+/// If passed width and height are positive, the atlas size is also set
+/// to the new values.
+void sma_atlas_clear(smol_atlas_t* atlas, int new_width = 0, int new_height = 0);
 
 /// Get item X coordinate.
 int sma_item_x(const smol_atlas_item_t* item);
