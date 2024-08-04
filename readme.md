@@ -80,11 +80,11 @@ The test then is this:
 
 | Library                                            | GCs     |Repacks/grows | Allocs  | Mac time, ms | Win time, ms | Look |
 |----------------------------------------------------|--------:|-------------:|--------:|-------------:|-------------:|------|
-| **smol-atlas**                                     | 800     | **127**      | 1170    | 20           | 11           | <img src="/img/gold_smol.svg" width="100" /> |
-| [Étagère][1] (Rust!) from Nicolas Silva / Mozilla  | 876     | 185          | 738     | **18**       | **15**       | <img src="/img/gold_etagere.svg" width="100" /> |
-| [shelf-pack-cpp][2] from Mapbox                    | 1027    | 426          | 521051  | 58           | 70           | <img src="/img/gold_mapbox.svg" width="100" /> |
-| [stb_rect_pack][3] from Sean Barrett               | **576** | 578          | 610     | 102          | 114          | <img src="/img/gold_rectpack.svg" width="100" /> |
-| [RectAllocator][4] from Andrew Willmott            | 912     | 248          | **331** | 313          | 387          | <img src="/img/gold_awralloc.svg" width="100" /> |
+| **smol-atlas**                                     | 800     | **127**      | 1170    | **9**        | **11**       | <img src="/img/gold_smol.svg" width="100" /> |
+| [Étagère][1] (Rust!) from Nicolas Silva / Mozilla  | 876     | 185          | 738     | 13           | 15           | <img src="/img/gold_etagere.svg" width="100" /> |
+| [shelf-pack-cpp][2] from Mapbox                    | 1027    | 426          | 521051  | 54           | 70           | <img src="/img/gold_mapbox.svg" width="100" /> |
+| [stb_rect_pack][3] from Sean Barrett               | **576** | 578          | 610     | 97           | 114          | <img src="/img/gold_rectpack.svg" width="100" /> |
+| [RectAllocator][4] from Andrew Willmott            | 912     | 248          | **331** | 306          | 387          | <img src="/img/gold_awralloc.svg" width="100" /> |
 
 [1]: https://github.com/nical/etagere
 [2]: https://github.com/mapbox/shelf-pack-cpp
@@ -101,13 +101,14 @@ My strategy for atlas resizing is the same for all the cases tested.
   - If the items can't be repacked into the same atlas size, increase the size and try again. However, I am not
     simply doubling the size, but rather increasing the smaller dimension by increments of 512.
 
-`smol-atlas` seems to only lose to Rust-based Étagère. It is faster than Mapbox `shelf-pack-cpp`, and quite a lot
+`smol-atlas` seems to be a tiny bit faster than `Étagère`, faster than Mapbox `shelf-pack-cpp`, and quite a lot
 faster than the slightly mis-used STB `stb_rect_pack` library ("mis-used" because it does not natively support
 item removal).
 
-### So is Étagère the best one?
+### So is Étagère good?
 
-Yes it does look very good ([github](https://github.com/nical/etagere) / [blog post](https://nical.github.io/posts/etagere.html)).
+Yes it does look good ([github](https://github.com/nical/etagere) / [blog post](https://nical.github.io/posts/etagere.html)).
+Unlike `smol-atlas`, it is presumably way better tested, given that it is part of Firefox.
 But it is written in Rust, which may or might not suit your needs.
 
 For testing it *here*, I compiled it as a shared library to be used from C. Notes to myself how I did it:
@@ -143,7 +144,6 @@ Not sure if any of this will happen, but here's a list of things that would be i
 - Usage: check/see whether it *actually* makes sense to put something like this into Blender's video sequence editor for thumbnails :)
 - Write a blog post about this mayhaps?
 - API: change to return "handles" instead of raw item pointers. They would be both smaller and safer.
-- Perf: implement internals without many small individual allocations.
 - API: provide ways of passing your own memory allocation functions.
 - Algo: play around with different ways of allocating items. E.g. instead of "first fit" within the shelf, maybe a "best fit" or
   "worst fit" would work better? Or maybe a full fledged "allocator" of 1D space within the shelf?
