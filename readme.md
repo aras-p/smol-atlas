@@ -78,13 +78,13 @@ The test then is this:
 150 thousand item removals from the texture atlas. All of the tested libraries produce an atlas of 1536x1536 pixels.
 "Win" time is Ryzen 5950X (VS2022), "Mac" time is M1 Max (Xcode15).
 
-| Library | GCs |Repacks/grows | Mac time, ms | Win time, ms | Look |
-|---------|----:|---------:|-------------:|-------------:|------|
-| **smol-atlas**                                                                                                | 800 | **127** | 20 | 32 | <img src="/img/gold_smol.svg" width="100" /> |
-| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | 876 | 185 | **18** | **23** | <img src="/img/gold_etagere.svg" width="100" /> |
-| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 1027 | 426 | 58 | 80 | <img src="/img/gold_mapbox.svg" width="100" /> |
-| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | **576** | 578 | 102 | 102 | <img src="/img/gold_rectpack.svg" width="100" /> |
-| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 912 | 248 | 313 | 406 | <img src="/img/gold_awralloc.svg" width="100" /> |
+| Library | GCs |Repacks/grows | Allocs | Mac time, ms | Win time, ms | Look |
+|---------|----:|-------------:|-------:|-------------:|-------------:|------|
+| **smol-atlas**                                                                                                | 800 | **127** | 368921 | 20 | 24 | <img src="/img/gold_smol.svg" width="100" /> |
+| [Étagère](https://github.com/nical/etagere) (Rust!) from Nicolas Silva / Mozilla                              | 876 | 185 | 738 | **18** | **15** | <img src="/img/gold_etagere.svg" width="100" /> |
+| [shelf-pack-cpp](https://github.com/mapbox/shelf-pack-cpp) from Mapbox                                        | 1027 | 426 | 521051 | 58 | 70 | <img src="/img/gold_mapbox.svg" width="100" /> |
+| [stb_rect_pack](https://github.com/nothings/stb/blob/master/stb_rect_pack.h) from Sean Barrett                | **576** | 578 | 610 | 102 | 114 | <img src="/img/gold_rectpack.svg" width="100" /> |
+| [RectAllocator](https://gist.github.com/andrewwillmott/f9124eb445df7b3687a666fe36d3dcdb) from Andrew Willmott | 912 | 248 | **331** | 313 | 387 | <img src="/img/gold_awralloc.svg" width="100" /> |
 
 My strategy for atlas resizing is the same for all the cases tested.
 - Initial atlas size is 1024x1024.

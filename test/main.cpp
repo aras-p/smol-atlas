@@ -8,13 +8,15 @@
 
 #include <algorithm>
 #include <string>
-#include <unordered_map>
+#include "../external/martinus_unordered_dense/include/ankerl/unordered_dense.h"
 #include <vector>
 
 #define TEST_ON_MAPBOX 1
 #define TEST_ON_ETAGERE (HAVE_ETAGERE && 1)
 #define TEST_ON_STB_RECTPACK 1
 #define TEST_ON_AW_RECTALLOCATOR 1
+
+#define HASHTABLE_TYPE ankerl::unordered_dense::map
 
 static constexpr int ATLAS_SIZE_INIT = 1024;
 static constexpr int ATLAS_GROW_BY = 512;
@@ -43,16 +45,21 @@ struct TestEntry {
     int height;
 };
 static std::vector<TestEntry> s_unique_entries;
-static std::unordered_map<std::string, int> s_entry_map;
+static HASHTABLE_TYPE<std::string, int> s_entry_map;
 static std::vector<int> s_test_entries;
 static std::vector<std::pair<int, int>> s_test_frames;
 
-static void load_test_data(const char* filename)
+static void clear_test_data()
 {
     s_unique_entries.clear();
     s_entry_map.clear();
     s_test_entries.clear();
     s_test_frames.clear();
+}
+
+static void load_test_data(const char* filename)
+{
+    clear_test_data();
 
     FILE* f = fopen(filename, "rt");
     if (!f) {
@@ -119,7 +126,7 @@ static void dump_svg_rect(FILE* f, int x, int y, int width, int height, int r, i
 // -------------------------------------------------------------------
 
 template<typename T>
-static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entry>& entries, const char* dumpname, const char* name)
+static void dump_to_svg(T& atlas, const HASHTABLE_TYPE<int, typename T::Entry>& entries, const char* dumpname, const char* name)
 {
     FILE* f = fopen(dumpname, "wb");
     if (!f)
@@ -144,7 +151,7 @@ static void dump_to_svg(T& atlas, const std::unordered_map<int, typename T::Entr
 }
 
 template<typename T>
-size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename T::Entry>& entries)
+size_t count_total_entries_size(T& atlas, const HASHTABLE_TYPE<int, typename T::Entry>& entries)
 {
     size_t total = 0;
     for (auto it : entries) {
@@ -157,7 +164,7 @@ size_t count_total_entries_size(T& atlas, const std::unordered_map<int, typename
 }
 
 template<typename T>
-int grow_atlas_and_repack(T& atlas, std::unordered_map<int, typename T::Entry>& entries, int e_id, int e_width, int e_height)
+int grow_atlas_and_repack(T& atlas, HASHTABLE_TYPE<int, typename T::Entry>& entries, int e_id, int e_width, int e_height)
 {
     struct EntryInfo {
         int id;
@@ -229,7 +236,7 @@ static void test_atlas_on_data(const char* name, const char* dumpname)
     T atlas(ATLAS_SIZE_INIT, ATLAS_SIZE_INIT);
 
     std::vector<int> id_to_timestamp(s_unique_entries.size(), -TEST_DATA_GC_AFTER_FRAMES);
-    std::unordered_map<int, typename T::Entry> live_entries;
+    HASHTABLE_TYPE<int, typename T::Entry> live_entries;
     
     int insertions = 0;
     int removals = 0;
@@ -325,7 +332,7 @@ static void test_atlas_synthetic(const char* name, const char* dumpname)
     int insertions = 0;
     int removals = 0;
     int id_counter = 1;
-    std::unordered_map<int, typename T::Entry> entries;
+    HASHTABLE_TYPE<int, typename T::Entry> entries;
     int repacks = 0;
 
     // insert a bunch of initial entries
@@ -711,6 +718,8 @@ int main()
     test_libs_on_data("gold");
     test_libs_on_data("wingit");
     test_libs_on_data("sprite-fright");
+
+    clear_test_data();
 
     return 0;
 }

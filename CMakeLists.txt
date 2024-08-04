@@ -14,7 +14,7 @@ target_sources(smol-atlas PRIVATE
 	external/andrewwillmott_rectallocator/RectAllocator.cpp
 	external/andrewwillmott_rectallocator/RectAllocator.h
 )
-target_compile_features(smol-atlas PRIVATE cxx_std_11)
+target_compile_features(smol-atlas PRIVATE cxx_std_17)
 
 if (WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
 	target_link_libraries(smol-atlas "${CMAKE_SOURCE_DIR}/external/etagere/etagere.dll.lib")
