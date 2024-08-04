@@ -6,6 +6,86 @@
 #include <assert.h>
 #include <vector>
 
+// "memory pool" that allocates chunks of same size items,
+// and maintains a freelist of items for O(1) alloc and free.
+template <typename T>
+struct smol_pool_t
+{
+    union item_t
+    {
+        item_t* next;
+        alignas(alignof(T)) char data[sizeof(T)];
+    };
+
+    struct chunk_t
+    {
+        item_t* storage = nullptr;
+        chunk_t* next = nullptr;
+        chunk_t(size_t size_in_items) : storage(new item_t[size_in_items])
+        {
+            for (size_t i = 1; i < size_in_items; ++i)
+                storage[i - 1].next = &storage[i];
+            storage[size_in_items - 1].next = nullptr;
+        }
+        ~chunk_t() { delete[] storage; }
+    };
+
+    size_t m_chunk_size_in_items;
+    chunk_t* m_cur_chunk = nullptr;
+    item_t* m_free_list = nullptr;
+
+    smol_pool_t(size_t size_in_items)
+        : m_chunk_size_in_items(size_in_items)
+        , m_cur_chunk(new chunk_t(size_in_items))
+        , m_free_list(m_cur_chunk->storage)
+    {
+    }
+    ~smol_pool_t() { clear(); }
+
+    void clear()
+    {
+        chunk_t* chunk = m_cur_chunk;
+        while (chunk) {
+            chunk_t* next = chunk->next;
+            delete chunk;
+            chunk = next;
+        }
+        m_cur_chunk = nullptr;
+        m_free_list = nullptr;
+    }
+
+    template <typename... Args> T* alloc(Args &&... args)
+    {
+        // create a new chunk if current one is full
+        if (m_free_list == nullptr) {
+            chunk_t* new_chunk = new chunk_t(m_chunk_size_in_items);
+            new_chunk->next = m_cur_chunk;
+            m_cur_chunk = new_chunk;
+            m_free_list = m_cur_chunk->storage;
+        }
+
+        // grab item from free list
+        item_t* item = m_free_list;
+        m_free_list = item->next;
+
+        // construct the object
+        T* res = reinterpret_cast<T*>(item->data);
+        new (res) T(std::forward<Args>(args)...);
+        return res;
+    }
+
+    void free(T* ptr)
+    {
+        // destroy the object
+        ptr->T::~T();
+
+        // add item to the free list
+        item_t* item = reinterpret_cast<item_t*>(ptr);
+        item->next = m_free_list;
+        m_free_list = item;
+    }
+};
+
 static inline int max_i(int a, int b)
 {
     return a > b ? a : b;
@@ -14,7 +94,7 @@ static inline int max_i(int a, int b)
 struct smol_atlas_item_t
 {
     explicit smol_atlas_item_t(int x_, int y_, int w_, int h_, int shelf_)
-    : x(x_), y(y_), width(w_), height(h_), item_index(-1), shelf_index(shelf_)
+    : x(x_), y(y_), width(w_), height(h_), shelf_index(shelf_)
     {
     }
 
@@ -22,14 +102,13 @@ struct smol_atlas_item_t
     int y;
     int width;
     int height;
-    int item_index;
     int shelf_index;
 };
 
 struct smol_free_span_t
 {
     explicit smol_free_span_t(int x_, int w_) : x(x_), width(w_), next(nullptr) {}
-    
+
     int x;
     int width;
     smol_free_span_t* next;
@@ -39,15 +118,6 @@ template<typename T>
 struct smol_single_list_t
 {
     smol_single_list_t(T* h) : m_head(h) { }
-    ~smol_single_list_t()
-    {
-        T* node = m_head;
-        while (node != nullptr) {
-            T* ptr = node;
-            node = node->next;
-            delete ptr;
-        }
-    }
     
     void insert(T* prev, T* node)
     {
@@ -67,7 +137,6 @@ struct smol_single_list_t
             prev->next = node->next;
         else
             m_head = node->next;
-        delete node;
     }
 
     T* m_head = nullptr;
@@ -75,16 +144,9 @@ struct smol_single_list_t
 
 struct smol_shelf_t
 {
-    explicit smol_shelf_t(int y, int width, int height, int index)
-        : m_y(y), m_height(height), m_index(index), m_free_spans(new smol_free_span_t(0, width))
+    explicit smol_shelf_t(int y, int width, int height, int index, smol_pool_t<smol_free_span_t>& span_pool)
+        : m_y(y), m_height(height), m_index(index), m_free_spans(span_pool.alloc(0, width))
     {
-    }
-    ~smol_shelf_t()
-    {
-        // release the entries
-        for (smol_atlas_item_t* e : m_entries) {
-            delete e;
-        }
     }
 
     bool has_space_for(int width) const
@@ -98,7 +160,7 @@ struct smol_shelf_t
         return false;
     }
 
-    smol_atlas_item_t* alloc_item(int w, int h)
+    smol_atlas_item_t* alloc_item(int w, int h, smol_pool_t<smol_atlas_item_t>& item_pool, smol_pool_t<smol_free_span_t>& span_pool)
     {
         if (h > m_height)
             return nullptr;
@@ -128,18 +190,16 @@ struct smol_shelf_t
         else {
             // whole span is taken, remove it
             m_free_spans.remove(prev, it);
+            span_pool.free(it);
         }
 
-        smol_atlas_item_t* e = new smol_atlas_item_t(x, m_y, w, h, m_index);
-        e->item_index = (int)m_entries.size();
-        m_entries.emplace_back(e);
-        return e;
+        return item_pool.alloc(x, m_y, w, h, m_index);
     }
 
-    void add_free_span(int x, int width)
+    void add_free_span(int x, int width, smol_pool_t<smol_free_span_t>& span_pool)
     {
         // insert into free spans list at the right position
-        smol_free_span_t* free_e = new smol_free_span_t(x, width);
+        smol_free_span_t* free_e = span_pool.alloc(x, width);
         smol_free_span_t* it = m_free_spans.m_head;
         smol_free_span_t* prev = nullptr;
         bool added = false;
@@ -156,55 +216,47 @@ struct smol_shelf_t
         if (!added)
             m_free_spans.insert(prev, free_e);
 
-        merge_free_spans(prev, free_e);
+        merge_free_spans(prev, free_e, span_pool);
     }
 
-    void free_item(smol_atlas_item_t* e)
+    void free_item(smol_atlas_item_t* e, smol_pool_t<smol_atlas_item_t>& item_pool, smol_pool_t<smol_free_span_t>& span_pool)
     {
         assert(e);
         assert(e->shelf_index == m_index);
         assert(e->y == m_y);
-        add_free_span(e->x, e->width);
-
-        // remove the actual item
-        assert(e->item_index == std::distance(m_entries.begin(), std::find(m_entries.begin(), m_entries.end(), e)));
-        int index = e->item_index;
-        if (index < m_entries.size() - 1) {
-            m_entries[index] = m_entries.back();
-            m_entries[index]->item_index = index;
-        }
-        m_entries.pop_back();
-        delete e;
+        add_free_span(e->x, e->width, span_pool);
+        item_pool.free(e);
     }
 
-    void merge_free_spans(smol_free_span_t* prev, smol_free_span_t* span)
+    void merge_free_spans(smol_free_span_t* prev, smol_free_span_t* span, smol_pool_t<smol_free_span_t>& span_pool)
     {
         smol_free_span_t* next = span->next;
         if (next != nullptr && span->x + span->width == next->x) {
             // merge with next
             span->width += next->width;
             m_free_spans.remove(span, next);
+            span_pool.free(next);
         }
         if (prev != nullptr && prev->x + prev->width == span->x) {
             // merge with prev
             prev->width += span->width;
             m_free_spans.remove(prev, span);
+            span_pool.free(span);
         }
     }
 
+    smol_single_list_t<smol_free_span_t> m_free_spans;
     const int m_y;
     const int m_height;
     const int m_index;
-
-    std::vector<smol_atlas_item_t*> m_entries;
-    smol_single_list_t<smol_free_span_t> m_free_spans;
 };
-
 
 struct smol_atlas_t
 {
     explicit smol_atlas_t(int w, int h)
+        : m_item_pool(1024), m_span_pool(1024)
     {
+        m_shelves.reserve(8);
         m_width = w > 0 ? w : 64;
         m_height = h > 0 ? h : 64;
     }
@@ -222,28 +274,28 @@ struct smol_atlas_t
 
         int top_y = 0;
         for (auto& shelf : m_shelves) {
-            const int shelf_h = shelf->m_height;
-            top_y = max_i(top_y, shelf->m_y + shelf_h);
+            const int shelf_h = shelf.m_height;
+            top_y = max_i(top_y, shelf.m_y + shelf_h);
             
             if (shelf_h < h)
                 continue; // too short
             
             if (shelf_h == h) { // exact height fit, try to use it
-                smol_atlas_item_t* res = shelf->alloc_item(w, h);
+                smol_atlas_item_t* res = shelf.alloc_item(w, h, m_item_pool, m_span_pool);
                 if (res != nullptr)
                     return res;
             }
 
             // otherwise the shelf is too tall, track best one
             int score = shelf_h - h;
-            if (score < best_score && shelf->has_space_for(w)) {
+            if (score < best_score && shelf.has_space_for(w)) {
                 best_score = score;
-                best_shelf = shelf;
+                best_shelf = &shelf;
             }
         }
 
         if (best_shelf) {
-            smol_atlas_item_t* res = best_shelf->alloc_item(w, h);
+            smol_atlas_item_t* res = best_shelf->alloc_item(w, h, m_item_pool, m_span_pool);
             if (res != nullptr)
                 return res;
         }
@@ -251,9 +303,8 @@ struct smol_atlas_t
         // no shelf with enough space: add a new shelf
         if (w <= m_width && h <= m_height - top_y) {
             int shelf_index = int(m_shelves.size());
-            smol_shelf_t* shelf = new smol_shelf_t(top_y, m_width, h, shelf_index);
-            m_shelves.emplace_back(shelf);
-            return shelf->alloc_item(w, h);
+            m_shelves.emplace_back(top_y, m_width, h, shelf_index, m_span_pool);
+            return m_shelves.back().alloc_item(w, h, m_item_pool, m_span_pool);
         }
 
         // out of space
@@ -265,17 +316,19 @@ struct smol_atlas_t
         if (item == nullptr)
             return;
         assert(item->shelf_index >= 0 && item->shelf_index < m_shelves.size());
-        m_shelves[item->shelf_index]->free_item(item);
+        m_shelves[item->shelf_index].free_item(item, m_item_pool, m_span_pool);
     }
 
     void clear()
     {
-        for (auto s : m_shelves)
-            delete s;
+        m_item_pool.clear();
+        m_span_pool.clear();
         m_shelves.clear();
     }
 
-    std::vector<smol_shelf_t*> m_shelves;
+    smol_pool_t<smol_atlas_item_t> m_item_pool;
+    smol_pool_t<smol_free_span_t> m_span_pool;
+    std::vector<smol_shelf_t> m_shelves;
     int m_width;
     int m_height;
 };
