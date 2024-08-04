@@ -5,12 +5,15 @@
 
 #include <assert.h>
 #include <vector>
+#include <type_traits>
 
 // "memory pool" that allocates chunks of same size items,
 // and maintains a freelist of items for O(1) alloc and free.
 template <typename T>
 struct smol_pool_t
 {
+    static_assert(std::is_trivially_destructible_v<T>, "smol_pool_t type must be trivially destructible");
+
     union item_t
     {
         item_t* next;
@@ -21,13 +24,19 @@ struct smol_pool_t
     {
         item_t* storage = nullptr;
         chunk_t* next = nullptr;
-        chunk_t(size_t size_in_items) : storage(new item_t[size_in_items])
+        size_t m_size_in_items;
+        chunk_t(size_t size_in_items) : storage(new item_t[size_in_items]), m_size_in_items(size_in_items)
         {
-            for (size_t i = 1; i < size_in_items; ++i)
-                storage[i - 1].next = &storage[i];
-            storage[size_in_items - 1].next = nullptr;
+            link_all_items(nullptr);
         }
         ~chunk_t() { delete[] storage; }
+
+        void link_all_items(item_t* last_item_next_ptr)
+        {
+            for (size_t i = 1; i < m_size_in_items; ++i)
+                storage[i - 1].next = &storage[i];
+            storage[m_size_in_items - 1].next = last_item_next_ptr;
+        }
     };
 
     size_t m_chunk_size_in_items;
@@ -40,9 +49,7 @@ struct smol_pool_t
         , m_free_list(m_cur_chunk->storage)
     {
     }
-    ~smol_pool_t() { clear(); }
-
-    void clear()
+    ~smol_pool_t()
     {
         chunk_t* chunk = m_cur_chunk;
         while (chunk) {
@@ -50,8 +57,18 @@ struct smol_pool_t
             delete chunk;
             chunk = next;
         }
-        m_cur_chunk = nullptr;
-        m_free_list = nullptr;
+    }
+
+    // makes all items "unused", but keeps the allocated space
+    void clear()
+    {
+        chunk_t* chunk = m_cur_chunk;
+        while (chunk) {
+            chunk_t* next = chunk->next;
+            chunk->link_all_items(next ? next->storage : nullptr);
+            chunk = next;
+        }
+        m_free_list = m_cur_chunk ? m_cur_chunk->storage : nullptr;
     }
 
     template <typename... Args> T* alloc(Args &&... args)
@@ -76,9 +93,6 @@ struct smol_pool_t
 
     void free(T* ptr)
     {
-        // destroy the object
-        ptr->T::~T();
-
         // add item to the free list
         item_t* item = reinterpret_cast<item_t*>(ptr);
         item->next = m_free_list;

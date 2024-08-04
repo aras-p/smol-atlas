@@ -78,11 +78,11 @@ The test then is this:
 
 | Library                                            | GCs     |Repacks/grows | Allocs  | Mac time, ms | Win time, ms | Look |
 |----------------------------------------------------|--------:|-------------:|--------:|-------------:|-------------:|------|
-| **smol-atlas**                                     | 800     | **127**      | 734     | **9**        | **11**       | <img src="/img/gold_smol.svg" width="100" /> |
+| **smol-atlas**                                     | 800     | **127**      | **168** | **9**        | **10**       | <img src="/img/gold_smol.svg" width="100" /> |
 | [Étagère][1] (Rust!) from Nicolas Silva / Mozilla  | 876     | 185          | 738     | 13           | 15           | <img src="/img/gold_etagere.svg" width="100" /> |
 | [shelf-pack-cpp][2] from Mapbox                    | 1027    | 426          | 521051  | 54           | 70           | <img src="/img/gold_mapbox.svg" width="100" /> |
 | [stb_rect_pack][3] from Sean Barrett               | **576** | 578          | 610     | 97           | 114          | <img src="/img/gold_rectpack.svg" width="100" /> |
-| [RectAllocator][4] from Andrew Willmott            | 912     | 248          | **331** | 306          | 387          | <img src="/img/gold_awralloc.svg" width="100" /> |
+| [RectAllocator][4] from Andrew Willmott            | 912     | 248          | 331     | 306          | 387          | <img src="/img/gold_awralloc.svg" width="100" /> |
 
 [1]: https://github.com/nical/etagere
 [2]: https://github.com/mapbox/shelf-pack-cpp
