@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <string>
-#include "../external/martinus_unordered_dense/include/ankerl/unordered_dense.h"
 #include <vector>
 
 #define TEST_ON_MAPBOX 1
@@ -16,7 +15,13 @@
 #define TEST_ON_STB_RECTPACK 1
 #define TEST_ON_AW_RECTALLOCATOR 1
 
+#if __cplusplus >= 201703L
+#include "../external/martinus_unordered_dense/include/ankerl/unordered_dense.h"
 #define HASHTABLE_TYPE ankerl::unordered_dense::map
+#else
+#include <unordered_map>
+#define HASHTABLE_TYPE std::unordered_map
+#endif
 
 static constexpr int ATLAS_SIZE_INIT = 1024;
 static constexpr int ATLAS_GROW_BY = 512;
