@@ -34,6 +34,27 @@
     CHECK_EQ(w, sma_item_width(e)); \
     CHECK_EQ(h, sma_item_height(e)); }
 
+static void test_invalid_item_when_out_of_space()
+{
+    smol_atlas_t* atlas = sma_atlas_create(64, 64);
+    // one shelf
+    smol_atlas_item_t* e1 = sma_item_add(atlas, 40, 16);
+    smol_atlas_item_t* e2 = sma_item_add(atlas, 24, 16);
+    CHECK_ITEM(e1, 0, 0, 40, 16);
+    CHECK_ITEM(e2, 40, 0, 24, 16);
+    // another shelf
+    smol_atlas_item_t* e3 = sma_item_add(atlas, 32, 48);
+    smol_atlas_item_t* e4 = sma_item_add(atlas, 32, 48);
+    CHECK_ITEM(e3, 0, 16, 32, 48);
+    CHECK_ITEM(e4, 32, 16, 32, 48);
+    // now it is full
+    smol_atlas_item_t* e5 = sma_item_add(atlas, 1, 1);
+    CHECK(e5 == nullptr);
+
+    sma_atlas_destroy(atlas);
+}
+
+
 static void test_same_height_on_same_shelf()
 {
     smol_atlas_t* atlas = sma_atlas_create(64, 64);
@@ -217,8 +238,12 @@ static void test_clear()
 
     sma_atlas_clear(atlas);
 
-    smol_atlas_item_t* e2 = sma_item_add(atlas, 10, 10);
-    CHECK_ITEM(e2, 0, 0, 10, 10);
+    smol_atlas_item_t* e2 = sma_item_add(atlas, 10, 5);
+    smol_atlas_item_t* e3 = sma_item_add(atlas, 5, 5);
+    smol_atlas_item_t* e4 = sma_item_add(atlas, 5, 5);
+    CHECK_ITEM(e2, 0, 0, 10, 5);
+    CHECK_ITEM(e3, 0, 5, 5, 5);
+    CHECK_ITEM(e4, 5, 5, 5, 5);
 
     sma_atlas_destroy(atlas);
 }
@@ -226,6 +251,7 @@ static void test_clear()
 int run_smol_atlas_tests()
 {
     printf("Run smol-atlas unit tests...\n");
+    test_invalid_item_when_out_of_space();
     test_same_height_on_same_shelf();
     test_larger_height_new_shelf();
     test_shorter_height_existing_best_shelf();
