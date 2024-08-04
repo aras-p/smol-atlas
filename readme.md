@@ -1,5 +1,3 @@
-# :warning: WIP! :warning:
-
 # smol-atlas
 
 2D rectangular [bin packing](https://en.wikipedia.org/wiki/Bin_packing_problem)
