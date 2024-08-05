@@ -26,6 +26,10 @@ if (WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/external/etagere/etagere.dll" $<TARGET_FILE_DIR:smol-atlas>)
 	target_compile_definitions(smol-atlas PRIVATE HAVE_ETAGERE=1)
 elseif (APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+	set_target_properties(smol-atlas PROPERTIES
+	    BUILD_RPATH "@rpath"
+	    INSTALL_RPATH "@rpath"
+	)
 	target_link_libraries(smol-atlas "${CMAKE_SOURCE_DIR}/external/etagere/libetagere.dylib")
 	target_compile_definitions(smol-atlas PRIVATE HAVE_ETAGERE=1)
 endif()
