@@ -1,0 +1,54 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v1
+    - name: Windows
+      run: |
+        mkdir out && cd out
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+        cd ..
+        cmake --build out --config Release
+        "out/Release/smol-atlas.exe"
+      shell: cmd
+
+  mac:
+    runs-on: macOS-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v1
+    - name: macOS
+      run: |
+        mkdir out && cd out
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+        cd ..
+        cmake --build out --config Release
+        out/smol-atlas
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v1
+    - name: Ubuntu
+      run: |
+        mkdir out && cd out
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+        cd ..
+        cmake --build out --config Release
+        out/smol-atlas

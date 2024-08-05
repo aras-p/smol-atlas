@@ -117,6 +117,11 @@ Build the dynamic libraries locally by:
   [lib]
   crate-type = ["cdylib"]
   ```
+- Create file `.cargo/config.toml` with contents:
+  ```
+  [target.aarch64-apple-darwin]
+  rustflags = ["-C", "link-args=-Wl,-install_name,@rpath/libetagere.dylib"]
+  ```
 - Build the dynamic library with `cargo build --release --features "ffi"`, it will be under `target/release`.
 - Generate header file with `cbindgen --config cbindgen.toml --crate etagere --output etagere.h`. You might need to do
   `cargo install cbindgen` first.
