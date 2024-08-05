@@ -26,7 +26,7 @@
 // At least C++11 is required.
 
 struct smol_atlas_t;
-struct smol_atlas_item_t;
+struct smol_atlas_item_t { int id = -1; bool is_valid() const { return id != -1; } };
 
 /// Create atlas of given size.
 smol_atlas_t* sma_atlas_create(int width, int height);
@@ -45,11 +45,11 @@ int sma_atlas_height(const smol_atlas_t* atlas);
 /// Item can later be removed with `sma_item_remove`.
 /// Returned pointer is valid until atlas is cleared or destroyed, or the item is removed.
 /// Returns NULL if there is no more space left.
-smol_atlas_item_t* sma_item_add(smol_atlas_t* atlas, int width, int height);
+smol_atlas_item_t sma_item_add(smol_atlas_t* atlas, int width, int height);
 
 /// Remove a previously added item from the atlas.
 /// The item pointer becomes invalid and can no longer be used.
-void sma_item_remove(smol_atlas_t* atlas, smol_atlas_item_t* item);
+void sma_item_remove(smol_atlas_t* atlas, smol_atlas_item_t item);
 
 /// Clear the atlas. This invalidates any previously returned item pointers.
 /// If passed width and height are positive, the atlas size is also set
@@ -57,10 +57,10 @@ void sma_item_remove(smol_atlas_t* atlas, smol_atlas_item_t* item);
 void sma_atlas_clear(smol_atlas_t* atlas, int new_width = 0, int new_height = 0);
 
 /// Get item X coordinate.
-int sma_item_x(const smol_atlas_item_t* item);
+int sma_item_x(const smol_atlas_t* atlas, smol_atlas_item_t item);
 /// Get item Y coordinate.
-int sma_item_y(const smol_atlas_item_t* item);
+int sma_item_y(const smol_atlas_t* atlas, smol_atlas_item_t item);
 /// Get item width.
-int sma_item_width(const smol_atlas_item_t* item);
+int sma_item_width(const smol_atlas_t* atlas, smol_atlas_item_t item);
 /// Get item height.
-int sma_item_height(const smol_atlas_item_t* item);
+int sma_item_height(const smol_atlas_t* atlas, smol_atlas_item_t item);

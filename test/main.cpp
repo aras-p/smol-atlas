@@ -638,7 +638,7 @@ struct test_on_etagere
 
 struct test_on_smol
 {
-    typedef smol_atlas_item_t* Entry;
+    typedef smol_atlas_item_t Entry;
     
     test_on_smol(int width, int height)
     {
@@ -658,11 +658,11 @@ struct test_on_smol
     int width() const { return sma_atlas_width(m_atlas); }
     int height() const { return sma_atlas_height(m_atlas); }
     
-    bool entry_valid(const Entry& e) const { return e != nullptr; }
-    int entry_x(const Entry& e) const { return sma_item_x(e); }
-    int entry_y(const Entry& e) const { return sma_item_y(e); }
-    int entry_width(const Entry& e) const { return sma_item_width(e); }
-    int entry_height(const Entry& e) const { return sma_item_height(e); }
+    bool entry_valid(const Entry& e) const { return e.is_valid(); }
+    int entry_x(const Entry& e) const { return sma_item_x(m_atlas, e); }
+    int entry_y(const Entry& e) const { return sma_item_y(m_atlas, e); }
+    int entry_width(const Entry& e) const { return sma_item_width(m_atlas, e); }
+    int entry_height(const Entry& e) const { return sma_item_height(m_atlas, e); }
 
     void dump_svg_extra_info(FILE* f)
     {
