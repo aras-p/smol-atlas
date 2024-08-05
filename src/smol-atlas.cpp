@@ -4,6 +4,7 @@
 #include "smol-atlas.h"
 
 #include <assert.h>
+#include <stddef.h>
 #include <vector>
 #include <type_traits>
 
