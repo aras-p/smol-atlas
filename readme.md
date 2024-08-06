@@ -49,6 +49,9 @@ if (item) {
     // where did it end up?
     int x = sma_item_x(item);
     int y = sma_item_y(item);
+
+    // can also remove it at some point
+    sma_item_remove(atlas, item);
 }
 sma_atlas_destroy(atlas);
 ```
