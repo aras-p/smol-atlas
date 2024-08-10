@@ -1,7 +1,7 @@
 # smol-atlas
 
 2D rectangular [bin packing](https://en.wikipedia.org/wiki/Bin_packing_problem)
-utility that uses the Shelf Best Height Fit heuristic, and supports item removal.
+utility that uses the Shelf Best Height Fit heuristic, and supports **item removal**.
 You could also call it a dynamic texture atlas allocator.
 
 ### What is it?
