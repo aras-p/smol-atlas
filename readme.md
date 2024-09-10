@@ -147,7 +147,9 @@ Build the dynamic libraries locally by:
 ### Possible future plans
 
 Not sure if any of this will happen, but here's a list of things that would be interesting to try:
-- Usage: check/see whether it *actually* makes sense to put something like this into Blender's video sequence editor for thumbnails :)
+- Usage: check/see whether it *actually* makes sense to ~put it into Blender's video sequence editor for thumbnails :)~
+  - Update: for now ([Blender 4.3](https://developer.blender.org/docs/release_notes/4.3/sequencer/)), I made thumbnails in Blender's VSE
+    use a much simpler scheme that rebuilds whole atlas every frame.
 - Write a blog post about this mayhaps?
 - API: change to return "handles" instead of raw item pointers. They would be both smaller and safer.
 - API: provide ways of passing your own memory allocation functions.
