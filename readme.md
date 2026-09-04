@@ -32,7 +32,7 @@ Implementation uses STL `<vector>`, and some manual memory allocation
 with just regular `new` and `delete`. Custom allocators might be nice to
 do someday.
 
-At least C++11 is required.
+At least C++11 is required (note: others [have ported it to C](https://gist.github.com/benanil/0e11ee0c4488f22e58dfa349ff88faf3)).
 
 License is either MIT or Unlicense, whichever is more convenient for you.
 
@@ -155,3 +155,5 @@ Not sure if any of this will happen, but here's a list of things that would be i
 - API: provide ways of passing your own memory allocation functions.
 - Algo: play around with different ways of allocating items. E.g. instead of "first fit" within the shelf, maybe a "best fit" or
   "worst fit" would work better? Or maybe a full fledged "allocator" of 1D space within the shelf?
+
+  
